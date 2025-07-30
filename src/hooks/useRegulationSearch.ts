@@ -291,13 +291,25 @@ export function useRegulationSearch(
         if (searchTypes.includes('shadow') && searchResult.shadowRegulation) {
           const shadowData = searchResult.shadowRegulation;
           if (shadowData.targetArea) {
+            // 測定高さから数値を抽出
+            const measurementHeight = shadowData.measurementHeight ? 
+              parseFloat(shadowData.measurementHeight.match(/(\d+\.?\d*)/)?.[1] || '0') : 0;
+            
+            // 5-10m範囲から数値を抽出
+            const shadowTime5to10m = shadowData.shadowTimeLimit ? 
+              parseFloat(shadowData.shadowTimeLimit.match(/(\d+)/)?.[1] || '0') : 0;
+            
+            // 10m超範囲から数値を抽出
+            const shadowTimeOver10m = shadowData.rangeOver10m ? 
+              parseFloat(shadowData.rangeOver10m.match(/(\d+)/)?.[1] || '0') : 0;
+              
             updates.siteInfo.shadowRegulation = {
               targetArea: shadowData.targetArea,
               targetBuilding: shadowData.targetBuildings || '',
-              measurementHeight: parseFloat(shadowData.measurementHeight || '0') || 0,
+              measurementHeight: measurementHeight,
               measurementTime: shadowData.timeRange || shadowData.measurementTime || '',
-              allowedShadowTime5to10m: parseFloat(shadowData.shadowTimeLimit || '0') || 0,
-              allowedShadowTimeOver10m: parseFloat(shadowData.rangeOver10m || '0') || 0
+              allowedShadowTime5to10m: shadowTime5to10m,
+              allowedShadowTimeOver10m: shadowTimeOver10m
             };
           }
         }
