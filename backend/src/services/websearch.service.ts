@@ -539,7 +539,41 @@ export class WebSearchService {
       const match = searchResults.match(pattern);
       if (match) {
         sunlightInfo.shadowTimeLimit = match[1].trim();
+        console.log('✅ Found 5-10m range:', match[1]);
         break;
+      }
+    }
+    
+    // デバッグ: 検索結果に5-10mの記述があるか確認
+    if (!sunlightInfo.shadowTimeLimit) {
+      console.log('⚠️ No 5-10m range found. Searching for any time limit...');
+      
+      // より一般的なパターンで再検索
+      const generalPatterns = [
+        /境界線.*?5.*?10.*?範囲.*?(\d+)\s*時間/i,
+        /5.*?10.*?(\d+)\s*時間/i,
+        /(\d+)\s*時間.*?5.*?10/i,
+        /第[一二三]種.*?(\d+)\s*時間.*?\d+\s*時間/i  // 複数の時間が記載されている場合
+      ];
+      
+      for (const pattern of generalPatterns) {
+        const match = searchResults.match(pattern);
+        if (match) {
+          sunlightInfo.shadowTimeLimit = match[1];
+          console.log('✅ Found 5-10m range with general pattern:', match[1]);
+          break;
+        }
+      }
+      
+      // それでも見つからない場合、すべての時間制限を表示
+      if (!sunlightInfo.shadowTimeLimit) {
+        const allTimePattern = /(\d+)\s*時間/g;
+        const matches = [...searchResults.matchAll(allTimePattern)];
+        if (matches.length >= 2) {
+          // 通常、最初の時間が5-10m、2番目が10m超のことが多い
+          sunlightInfo.shadowTimeLimit = matches[0][1];
+          console.log('📋 Using first time limit as 5-10m range:', matches[0][1]);
+        }
       }
     }
 
@@ -557,7 +591,61 @@ export class WebSearchService {
       const match = searchResults.match(pattern);
       if (match) {
         sunlightInfo.rangeOver10m = match[1].trim();
+        console.log('✅ Found 10m+ range:', match[1]);
         break;
+      }
+    }
+    
+    // デバッグ: 検索結果の一部を表示
+    if (!sunlightInfo.rangeOver10m) {
+      console.log('⚠️ No 10m+ range found. Searching with general patterns...');
+      
+      // より一般的なパターンで再検索
+      const generalPatterns = [
+        /10.*?超.*?(\d+)\s*時間/i,
+        /10.*?以上.*?(\d+)\s*時間/i,
+        /(\d+)\s*時間.*?10.*?超/i,
+        /第[一二三]種.*?\d+\s*時間.*?(\d+)\s*時間/i  // 複数の時間が記載されている場合、2番目を取得
+      ];
+      
+      for (const pattern of generalPatterns) {
+        const match = searchResults.match(pattern);
+        if (match) {
+          sunlightInfo.rangeOver10m = match[1];
+          console.log('✅ Found 10m+ range with general pattern:', match[1]);
+          break;
+        }
+      }
+      
+      // それでも見つからない場合、すべての時間制限から推測
+      if (!sunlightInfo.rangeOver10m && !sunlightInfo.shadowTimeLimit) {
+        const allTimePattern = /(\d+)\s*時間/g;
+        const matches = [...searchResults.matchAll(allTimePattern)];
+        if (matches.length >= 2) {
+          // 通常、2番目の時間が10m超のことが多い
+          sunlightInfo.rangeOver10m = matches[1][1];
+          console.log('📋 Using second time limit as 10m+ range:', matches[1][1]);
+        } else if (matches.length === 1) {
+          // 1つしかない場合は両方に同じ値を設定
+          sunlightInfo.rangeOver10m = matches[0][1];
+          if (!sunlightInfo.shadowTimeLimit) {
+            sunlightInfo.shadowTimeLimit = matches[0][1];
+          }
+          console.log('📋 Using single time limit for both ranges:', matches[0][1]);
+        }
+      } else if (!sunlightInfo.rangeOver10m && sunlightInfo.shadowTimeLimit) {
+        // 5-10mの時間が見つかっている場合、全体から2番目の時間を探す
+        const allTimePattern = /(\d+)\s*時間/g;
+        const matches = [...searchResults.matchAll(allTimePattern)];
+        const shadowTimeValue = sunlightInfo.shadowTimeLimit.match(/\d+/)?.[0];
+        
+        for (const match of matches) {
+          if (match[1] !== shadowTimeValue) {
+            sunlightInfo.rangeOver10m = match[1];
+            console.log('📋 Found different time limit for 10m+ range:', match[1]);
+            break;
+          }
+        }
       }
     }
 
