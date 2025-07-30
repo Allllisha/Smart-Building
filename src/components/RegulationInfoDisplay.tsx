@@ -178,16 +178,24 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
             </Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
               <strong>測定面高さ:</strong> {shadowRegulation.data.measurementHeight}
+              {shadowRegulation.data.measurementHeight && !shadowRegulation.data.measurementHeight.includes('m') ? 'm' : ''}
             </Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
               <strong>測定時間帯:</strong> {shadowRegulation.data.measurementTime}
             </Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
               <strong>5-10m範囲:</strong> {shadowRegulation.data.range5to10m}
+              {shadowRegulation.data.range5to10m ? '時間以内' : ''}
             </Typography>
             <Typography variant="body2">
               <strong>10m超範囲:</strong> {shadowRegulation.data.rangeOver10m}
+              {shadowRegulation.data.rangeOver10m ? '時間以内' : ''}
             </Typography>
+            {shadowRegulation.data.targetArea && (
+              <Typography variant="caption" color="info.main" sx={{ mt: 2, display: 'block' }}>
+                ※ 日影時間は、冬至日の測定時間帯内で建物の影が敷地外に落ちる時間の上限です
+              </Typography>
+            )}
           </Box>
         ) : (
           <Box sx={{ 
