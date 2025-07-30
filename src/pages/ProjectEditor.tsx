@@ -38,7 +38,7 @@ import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { fetchRegulationInfo, ShadowRegulation, ZoningInfo, AdministrativeGuidanceItem, checkRegulationCompliance } from '@/services/regulationService'
 import { FloorAreaInput } from '@/components/FloorAreaInput'
 import { searchComprehensiveInfo, RegulationInfo } from '@/api/webSearchApi'
-import { Stack, Alert } from '@mui/material'
+import { Stack, Alert, Snackbar } from '@mui/material'
 import { People as PeopleIcon } from '@mui/icons-material'
 import { useRegulationSearch } from '@/hooks/useRegulationSearch'
 import { RegulationInfoDisplay } from '@/components/RegulationInfoDisplay'
@@ -55,6 +55,7 @@ export default function ProjectEditor() {
   const [activeStep, setActiveStep] = useState(0)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [saveSnackbarOpen, setSaveSnackbarOpen] = useState(false)
   // 統合された規制情報検索フック
   const { state: regulationState, searchRegulations, debouncedSearch } = useRegulationSearch(
     currentProject,
@@ -803,8 +804,9 @@ export default function ProjectEditor() {
       // Save to backend
       await projectApi.update(currentProject.id, currentProject)
       
-      // Show success message (optional)
+      // Show success message
       console.log('プロジェクトを保存しました')
+      setSaveSnackbarOpen(true)
       
       // ダッシュボードに戻らず、現在の画面に留まる
       // navigate('/dashboard')
@@ -2105,6 +2107,22 @@ export default function ProjectEditor() {
           onCancel={handleDeleteCancel}
           loading={isDeleting}
         />
+        
+        {/* 保存成功のSnackbar */}
+        <Snackbar
+          open={saveSnackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSaveSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setSaveSnackbarOpen(false)}
+            severity="success"
+            sx={{ width: '100%' }}
+          >
+            プロジェクトを保存しました
+          </Alert>
+        </Snackbar>
       </Container>
     </Box>
   )
