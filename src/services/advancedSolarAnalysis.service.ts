@@ -45,6 +45,7 @@ export interface PreciseSolarAnalysis {
 
 class AdvancedSolarAnalysisService {
   private readonly openMeteoBaseUrl = 'https://api.open-meteo.com/v1'
+  private readonly openMeteoArchiveUrl = 'https://archive-api.open-meteo.com/v1'
   private analysisCache = new Map<string, PreciseSolarAnalysis>()
 
   /**
@@ -110,36 +111,81 @@ class AdvancedSolarAnalysisService {
     longitude: number,
     dateTime: Date
   ): Promise<WeatherConditions> {
-    const date = dateTime.toISOString().split('T')[0]
-    const hour = dateTime.getHours()
-
-    const response = await axios.get(`${this.openMeteoBaseUrl}/forecast`, {
-      params: {
-        latitude,
-        longitude,
-        start_date: date,
-        end_date: date,
-        hourly: [
-          'cloud_cover',
-          'precipitation',
-          'relative_humidity_2m',
-          'temperature_2m',
-          'visibility',
-          'uv_index'
-        ].join(','),
-        timezone: 'auto'
+    try {
+      const now = new Date()
+      const minDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      
+      const date = dateTime.toISOString().split('T')[0]
+      const hour = dateTime.getHours()
+      
+      let response
+      
+      // 日付範囲に応じて適切なAPIを選択
+      if (dateTime >= minDate && dateTime <= maxDate) {
+        // 現在の範囲内：通常のForecast APIを使用
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'temperature_2m,relative_humidity_2m,precipitation,cloud_cover',
+          start_date: date,
+          end_date: date,
+          timezone: 'auto'
+        }
+        response = await axios.get(`${this.openMeteoBaseUrl}/forecast`, { params })
+      } else if (dateTime < minDate) {
+        // 過去のデータ：Historical APIを使用
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'temperature_2m,relative_humidity_2m,precipitation,cloud_cover',
+          start_date: date,
+          end_date: date,
+          timezone: 'auto'
+        }
+        response = await axios.get(`${this.openMeteoArchiveUrl}/archive`, { params })
+      } else {
+        // 未来すぎる日付：前年の同日データを使用
+        const lastYearDate = new Date(dateTime)
+        lastYearDate.setFullYear(lastYearDate.getFullYear() - 1)
+        const lastYearDateStr = lastYearDate.toISOString().split('T')[0]
+        
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'temperature_2m,relative_humidity_2m,precipitation,cloud_cover',
+          start_date: lastYearDateStr,
+          end_date: lastYearDateStr,
+          timezone: 'auto'
+        }
+        console.info(`⚠️ 未来の日付のため、前年同日（${lastYearDateStr}）のデータを使用`)
+        response = await axios.get(`${this.openMeteoArchiveUrl}/archive`, { params })
       }
-    })
 
-    const hourly = response.data.hourly
+      const hourly = response.data.hourly
 
-    return {
-      cloudCover: hourly.cloud_cover?.[hour] || 0,
-      precipitation: hourly.precipitation?.[hour] || 0,
-      humidity: hourly.relative_humidity_2m?.[hour] || 50,
-      temperature: hourly.temperature_2m?.[hour] || 20,
-      visibility: hourly.visibility?.[hour] || 10,
-      uvIndex: hourly.uv_index?.[hour] || 0
+      return {
+        cloudCover: hourly.cloud_cover?.[hour] || 0,
+        precipitation: hourly.precipitation?.[hour] || 0,
+        humidity: hourly.relative_humidity_2m?.[hour] || 50,
+        temperature: hourly.temperature_2m?.[hour] || 20,
+        visibility: 10000, // デフォルト値
+        uvIndex: 5 // デフォルト値
+      }
+    } catch (error: any) {
+      console.warn('気象データ取得エラー:', error.message)
+      if (error.response) {
+        console.error('API Response Error:', error.response.data)
+      }
+      // フォールバック値を返す
+      return {
+        cloudCover: 30,
+        precipitation: 0,
+        humidity: 50,
+        temperature: 20,
+        visibility: 10000,
+        uvIndex: 5
+      }
     }
   }
 
@@ -151,35 +197,81 @@ class AdvancedSolarAnalysisService {
     longitude: number,
     dateTime: Date
   ): Promise<SolarRadiation> {
-    const date = dateTime.toISOString().split('T')[0]
-    const hour = dateTime.getHours()
-
-    const response = await axios.get(`${this.openMeteoBaseUrl}/forecast`, {
-      params: {
-        latitude,
-        longitude,
-        start_date: date,
-        end_date: date,
-        hourly: [
-          'direct_radiation',
-          'diffuse_radiation',
-          'global_tilted_irradiance'
-        ].join(','),
-        timezone: 'auto'
+    try {
+      const now = new Date()
+      const minDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      
+      const date = dateTime.toISOString().split('T')[0]
+      const hour = dateTime.getHours()
+      
+      let response
+      
+      // 日付範囲に応じて適切なAPIを選択
+      if (dateTime >= minDate && dateTime <= maxDate) {
+        // 現在の範囲内：通常のForecast APIを使用
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'direct_radiation,diffuse_radiation',
+          start_date: date,
+          end_date: date,
+          timezone: 'auto'
+        }
+        response = await axios.get(`${this.openMeteoBaseUrl}/forecast`, { params })
+      } else if (dateTime < minDate) {
+        // 過去のデータ：Historical APIを使用
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'direct_radiation,diffuse_radiation',
+          start_date: date,
+          end_date: date,
+          timezone: 'auto'
+        }
+        response = await axios.get(`${this.openMeteoArchiveUrl}/archive`, { params })
+      } else {
+        // 未来すぎる日付：前年の同日データを使用
+        const lastYearDate = new Date(dateTime)
+        lastYearDate.setFullYear(lastYearDate.getFullYear() - 1)
+        const lastYearDateStr = lastYearDate.toISOString().split('T')[0]
+        
+        const params = {
+          latitude: latitude.toFixed(4),
+          longitude: longitude.toFixed(4),
+          hourly: 'direct_radiation,diffuse_radiation',
+          start_date: lastYearDateStr,
+          end_date: lastYearDateStr,
+          timezone: 'auto'
+        }
+        console.info(`⚠️ 未来の日付のため、前年同日（${lastYearDateStr}）のデータを使用`)
+        response = await axios.get(`${this.openMeteoArchiveUrl}/archive`, { params })
       }
-    })
 
-    const hourly = response.data.hourly
+      const hourly = response.data.hourly
 
-    const direct = hourly.direct_radiation?.[hour] || 0
-    const diffuse = hourly.diffuse_radiation?.[hour] || 0
-    const global = hourly.global_tilted_irradiance?.[hour] || direct + diffuse
+      const direct = hourly.direct_radiation?.[hour] || 0
+      const diffuse = hourly.diffuse_radiation?.[hour] || 0
+      const global = direct + diffuse // 直達日射 + 拡散日射 = 全天日射
 
-    return {
-      direct,
-      diffuse,
-      global,
-      atmospheric: this.calculateAtmosphericTransmittance(direct, diffuse)
+      return {
+        direct,
+        diffuse,
+        global,
+        atmospheric: this.calculateAtmosphericTransmittance(direct, diffuse)
+      }
+    } catch (error: any) {
+      console.warn('太陽放射データ取得エラー:', error.message)
+      if (error.response) {
+        console.error('API Response Error:', error.response.data)
+      }
+      // フォールバック値を返す
+      return {
+        direct: 500,
+        diffuse: 100,
+        global: 600,
+        atmospheric: 0.7
+      }
     }
   }
 

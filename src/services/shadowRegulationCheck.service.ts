@@ -64,12 +64,13 @@ class ShadowRegulationCheckService {
         project.location.address
       )
 
-      // 適用される規制を判定
+      // 適用される規制を判定（プロジェクトデータを渡す）
       const regulation = await this.determineApplicableRegulation(
         project.location.address,
         locationInfo.prefecture,
         locationInfo.city,
-        locationInfo.ward
+        locationInfo.ward,
+        project
       )
 
       // 建物が規制対象かチェック
@@ -122,8 +123,45 @@ class ShadowRegulationCheckService {
     address: string,
     prefecture: string,
     city: string,
-    ward: string
+    ward: string,
+    project?: Project
   ): Promise<ZoneRegulation> {
+    // プロジェクトに保存された規制情報を優先的に使用
+    if (project?.siteInfo?.shadowRegulation?.targetArea && project?.siteInfo?.zoningType) {
+      console.log('📋 保存された規制情報を使用')
+      
+      // 保存された用途地域を使用
+      const zoneType = project.siteInfo.zoningType
+      const savedRegulation = project.siteInfo.shadowRegulation
+      
+      // 保存された規制情報から ZoneRegulation を構築
+      const regulation: ZoneRegulation = {
+        zone: zoneType,
+        targetHeight: this.getTargetHeightForZone(zoneType),
+        targetFloors: this.getTargetFloorsForZone(zoneType),
+        measurementHeight: savedRegulation.measurementHeight || 4,
+        restrictions: {
+          range5to10m: savedRegulation.allowedShadowTime5to10m || 4,
+          rangeOver10m: savedRegulation.allowedShadowTimeOver10m || 2.5
+        },
+        timeRange: { start: 8, end: 16 } // 標準的な測定時間帯
+      }
+      
+      // 測定時間帯の解析（例: "冬至日の午前8時から午後4時"）
+      if (savedRegulation.measurementTime) {
+        const timeMatch = savedRegulation.measurementTime.match(/午前(\d+)時.*?午後(\d+)時/)
+        if (timeMatch) {
+          regulation.timeRange.start = parseInt(timeMatch[1])
+          regulation.timeRange.end = parseInt(timeMatch[2]) + 12 // 午後は12を加算
+        }
+      }
+      
+      this.regulationCache.set(`${prefecture}_${city}_${ward}`, regulation)
+      return regulation
+    }
+
+    // 保存されていない場合は従来の推定ロジックを使用
+    console.log('⚠️ 保存された規制情報がないため、推定値を使用')
     const cacheKey = `${prefecture}_${city}_${ward}`
     
     if (this.regulationCache.has(cacheKey)) {
@@ -136,6 +174,30 @@ class ShadowRegulationCheckService {
     
     this.regulationCache.set(cacheKey, regulation)
     return regulation
+  }
+
+  /**
+   * 用途地域から規制対象高さを取得
+   */
+  private getTargetHeightForZone(zoneType: string): number {
+    // 低層住居専用地域
+    if (zoneType.includes('低層住居専用')) {
+      return 7 // 軒高7m超
+    }
+    // その他の地域
+    return 10 // 高さ10m超
+  }
+
+  /**
+   * 用途地域から規制対象階数を取得
+   */
+  private getTargetFloorsForZone(zoneType: string): number {
+    // 低層住居専用地域
+    if (zoneType.includes('低層住居専用')) {
+      return 3 // 3階建以上
+    }
+    // その他の地域は高さのみで判定
+    return 0
   }
 
   /**
@@ -273,7 +335,9 @@ class ShadowRegulationCheckService {
    */
   private calculateWinterSolsticeData(latitude: number, longitude: number): WinterSolsticeData {
     const currentYear = new Date().getFullYear()
-    const winterSolstice = new Date(currentYear, 11, 21, 12, 0, 0) // 12月21日
+    // 現在の年から1年前の冬至を使用（API範囲内に収めるため）
+    const winterSolsticeYear = currentYear - 1
+    const winterSolstice = new Date(winterSolsticeYear, 11, 21, 12, 0, 0) // 12月21日
 
     const sunPath = []
     for (let hour = 0; hour < 24; hour += 0.5) {

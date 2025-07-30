@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Box } from '@mui/material'
 import { Project } from '@/types/project'
 import { solarDataService, SolarData } from '@/services/solarData.service'
 import { advancedSolarAnalysisService, PreciseSolarAnalysis } from '@/services/advancedSolarAnalysis.service'
+import { VolumeCheckResult } from '@/services/shadowRegulationCheck.service'
 
 // IFCLoaderの実装
 import { IFCLoader } from '@/utils/IFCLoader'
@@ -16,9 +17,14 @@ interface Scene3DProps {
   dateTime?: Date
   onAnalysisUpdate?: (analysis: PreciseSolarAnalysis | null) => void
   onScreenshotReady?: (screenshot: string) => void
+  volumeCheckResult?: VolumeCheckResult | null
+  showVolumeCheck?: boolean
+  currentTime?: number
+  showShadowAnalysis?: boolean
+  showTerrain?: boolean
 }
 
-export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime = new Date(), onAnalysisUpdate, onScreenshotReady }: Scene3DProps) {
+export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime = new Date(), onAnalysisUpdate, onScreenshotReady, volumeCheckResult, showVolumeCheck = false, currentTime = 12, showShadowAnalysis = true, showTerrain = false }: Scene3DProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -26,6 +32,10 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
   const controlsRef = useRef<OrbitControls | null>(null)
   const animationIdRef = useRef<number | null>(null)
   const buildingGroupRef = useRef<THREE.Group | null>(null)
+  const volumeVisualizationRef = useRef<THREE.Group | null>(null)
+  const sunLightRef = useRef<THREE.DirectionalLight | null>(null)
+  const buildingRef = useRef<THREE.Mesh | null>(null)
+  const shadowCasterRef = useRef<THREE.Mesh | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [solarData, setSolarData] = useState<SolarData | null>(null)
   const [preciseAnalysis, setPreciseAnalysis] = useState<PreciseSolarAnalysis | null>(null)
@@ -83,7 +93,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
-    renderer.shadowMap.enabled = showShadows
+    renderer.shadowMap.enabled = true // 常に有効に
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     
     // DOM要素をクリア
@@ -130,6 +140,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
     sunLight.shadow.camera.top = 100
     sunLight.shadow.camera.bottom = -100
     scene.add(sunLight)
+    sunLightRef.current = sunLight
 
     // 太陽の視覚化（小さな球体）
     const sunGeometry = new THREE.SphereGeometry(2, 16, 16)
@@ -152,8 +163,10 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
     ground.receiveShadow = showShadows
     scene.add(ground)
 
-    // グリッドヘルパー
+    // グリッドヘルパー（より控えめな設定）
     const gridHelper = new THREE.GridHelper(200, 50)
+    gridHelper.material.opacity = 0.2
+    gridHelper.material.transparent = true
     scene.add(gridHelper)
 
     // 建物グループの作成
@@ -161,142 +174,22 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
     buildingGroupRef.current = buildingGroup
     scene.add(buildingGroup)
 
-    // 仮の建物を表示（IFCファイルがない場合かつ必要な情報がある場合）
-    if (!ifcUrl && hasValidBuildingInfo(project)) {
-      const { buildingArea, floors, maxHeight } = project.buildingInfo
-      const buildingWidth = Math.sqrt(buildingArea!)
-      const buildingDepth = buildingWidth
-      const floorHeight = (maxHeight || 10000) / floors! / 1000 // mm to m
 
-      const buildingGeometry = new THREE.BoxGeometry(
-        buildingWidth,
-        floors * floorHeight,
-        buildingDepth
-      )
-      const buildingMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x00FF00, // 3D Terrainモードと同じ緑色
-        roughness: 0.7,
-        metalness: 0.1,
-      })
-      const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
-      building.position.y = (floors * floorHeight) / 2
-      building.castShadow = showShadows
-      building.receiveShadow = showShadows
-      buildingGroup.add(building)
-
-      // 各階の線を追加
-      for (let i = 1; i < floors; i++) {
-        const floorLineGeometry = new THREE.BoxGeometry(
-          buildingWidth + 0.1,
-          0.1,
-          buildingDepth + 0.1
-        )
-        const floorLineMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 })
-        const floorLine = new THREE.Mesh(floorLineGeometry, floorLineMaterial)
-        floorLine.position.y = i * floorHeight
-        buildingGroup.add(floorLine)
-      }
-    }
-
-    // 太陽位置の更新関数（Open-Meteo API使用）
-    const updateSunPosition = async (date: Date) => {
-      try {
-        const { latitude, longitude } = project.location
-        const data = await solarDataService.getSolarData(latitude, longitude, date)
-        setSolarData(data)
-        
-        const { position, isDayTime } = data
-        
-        // 高度と方位角をラジアンに変換
-        const altitudeRad = position.altitude * Math.PI / 180
-        const azimuthRad = position.azimuth * Math.PI / 180
-        
-        // 夜間・昼間の処理
-        if (!isDayTime || position.altitude < 0) {
-          sunLight.intensity = 0.1
-          ambientLight.intensity = 0.2
-          scene.background = new THREE.Color(0x2a2a3a) // 夜の空の色
-          sunSphere.visible = false // 夜間は太陽を非表示
-        } else {
-          const intensityFactor = Math.max(position.altitude / 90, 0.1) // 0.1〜1.0
-          sunLight.intensity = 0.8 * intensityFactor
-          ambientLight.intensity = 0.4 + 0.3 * intensityFactor
-          scene.background = new THREE.Color(0xf0f0f0) // 昼の空の色
-          sunSphere.visible = true
-        }
-        
-        // 太陽の3D位置を計算
-        const distance = 100
-        const sunX = distance * Math.cos(altitudeRad) * Math.sin(azimuthRad)
-        const sunY = Math.max(distance * Math.sin(altitudeRad), 5)
-        const sunZ = distance * Math.cos(altitudeRad) * Math.cos(azimuthRad)
-        
-        sunLight.position.set(sunX, sunY, sunZ)
-        sunLight.target.position.set(0, 0, 0)
-        
-        // 太陽の視覚化
-        sunSphere.position.set(sunX * 0.8, sunY * 0.8, sunZ * 0.8)
-        
-        console.log(`☀️ 太陽位置更新 (Open-Meteo): 高度${position.altitude.toFixed(1)}°, 方位${position.azimuth.toFixed(1)}°, 昼間:${isDayTime}`)
-      } catch (error) {
-        console.error('太陽位置更新エラー:', error)
-        // フォールバック用の簡易計算
-        updateSunPositionFallback(date)
-      }
-    }
-
-    // フォールバック用の太陽位置更新
-    const updateSunPositionFallback = (date: Date) => {
-      const { latitude, longitude } = project.location
-      const sunPosition = calculateSunPosition(date, latitude, longitude)
-      
-      const isNight = sunPosition.altitude < 0
-      
-      if (isNight) {
-        sunLight.intensity = 0.1
-        ambientLight.intensity = 0.2
-        scene.background = new THREE.Color(0x2a2a3a)
-        sunSphere.visible = false
-      } else {
-        sunLight.intensity = 0.8 + sunPosition.altitude * 0.5
-        ambientLight.intensity = 0.4 + sunPosition.altitude * 0.2
-        scene.background = new THREE.Color(0xf0f0f0)
-        sunSphere.visible = true
-      }
-      
-      const distance = 100
-      const sunX = distance * Math.cos(sunPosition.altitude) * Math.sin(sunPosition.azimuth)
-      const sunY = Math.max(distance * Math.sin(sunPosition.altitude), 5)
-      const sunZ = distance * Math.cos(sunPosition.altitude) * Math.cos(sunPosition.azimuth)
-      
-      sunLight.position.set(sunX, sunY, sunZ)
-      sunLight.target.position.set(0, 0, 0)
-      sunSphere.position.set(sunX * 0.8, sunY * 0.8, sunZ * 0.8)
-      
-      console.log(`☀️ 太陽位置更新 (フォールバック): 高度${(sunPosition.altitude * 180 / Math.PI).toFixed(1)}°`)
-    }
-
-    // アニメーションループ - 非同期対応
+    // アニメーションループ
     function animate() {
-      controls.update()
-      renderer.render(scene, camera)
-      animationIdRef.current = requestAnimationFrame(animate)
+      try {
+        controls.update()
+        renderer.render(scene, camera)
+        animationIdRef.current = requestAnimationFrame(animate)
+      } catch (error) {
+        console.error('Animation error:', error)
+        // エラーが発生してもアニメーションを継続
+        animationIdRef.current = requestAnimationFrame(animate)
+      }
     }
     
     console.log('🎬 アニメーション開始')
     animate()
-
-    // 初期太陽位置設定
-    if (showShadows) {
-      updateSunPosition(dateTime)
-    }
-
-    // 建物表示完了後にスクリーンショットを撮影
-    if (hasValidBuildingInfo(project) && onScreenshotReady) {
-      setTimeout(() => {
-        captureScreenshot()
-      }, 2000) // 2秒待機してからスクリーンショット撮影
-    }
 
     // リサイズハンドラー
     const handleResize = () => {
@@ -309,20 +202,336 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
 
     // クリーンアップ
     return () => {
+      console.log('🎮 Scene3D cleanup starting')
       window.removeEventListener('resize', handleResize)
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current)
+        animationIdRef.current = null
       }
       if (controlsRef.current) {
         controlsRef.current.dispose()
+        controlsRef.current = null
       }
-      renderer.dispose()
-      if (mountRef.current && renderer.domElement.parentNode === mountRef.current) {
-        mountRef.current.removeChild(renderer.domElement)
+      if (rendererRef.current) {
+        rendererRef.current.dispose()
+        if (mountRef.current && rendererRef.current.domElement && mountRef.current.contains(rendererRef.current.domElement)) {
+          mountRef.current.removeChild(rendererRef.current.domElement)
+        }
+        rendererRef.current = null
       }
+      sceneRef.current = null
+      cameraRef.current = null
+      sunLightRef.current = null
+      buildingRef.current = null
+      shadowCasterRef.current = null
       console.log('🎮 Scene3D cleanup completed')
     }
-  }, [project, showShadows])
+  }, [])
+
+  // 建物の表示（プロジェクトデータが変更された時）
+  useEffect(() => {
+    if (!sceneRef.current || !buildingGroupRef.current || ifcUrl) return
+
+    try {
+      // 既存の建物を削除
+      buildingGroupRef.current.clear()
+      buildingRef.current = null
+      shadowCasterRef.current = null
+
+      // 仮の建物を表示（必要な情報がある場合）
+      if (hasValidBuildingInfo(project)) {
+        const { buildingArea, floors, maxHeight } = project.buildingInfo
+        const buildingWidth = Math.sqrt(buildingArea!)
+        const buildingDepth = buildingWidth
+        const floorHeight = (maxHeight || 10000) / floors! / 1000 // mm to m
+
+        const buildingGeometry = new THREE.BoxGeometry(
+          buildingWidth,
+          floors * floorHeight,
+          buildingDepth
+        )
+        const buildingMaterial = new THREE.MeshStandardMaterial({ 
+          color: 0x00FF00, // 3D Terrainモードと同じ緑色
+          roughness: 0.7,
+          metalness: 0.1,
+        })
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
+        building.position.y = (floors * floorHeight) / 2
+        building.castShadow = true
+        building.receiveShadow = true
+        buildingGroupRef.current.add(building)
+        buildingRef.current = building
+        shadowCasterRef.current = building
+
+      // 各階の線を追加
+      for (let i = 1; i < floors; i++) {
+        const floorLineGeometry = new THREE.BoxGeometry(
+          buildingWidth + 0.1,
+          0.1,
+          buildingDepth + 0.1
+        )
+        const floorLineMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 })
+        const floorLine = new THREE.Mesh(floorLineGeometry, floorLineMaterial)
+        floorLine.position.y = i * floorHeight
+        buildingGroupRef.current.add(floorLine)
+      }
+
+        // 建物表示完了後にスクリーンショットを撮影
+        if (onScreenshotReady) {
+          setTimeout(() => {
+            captureScreenshot()
+          }, 1000) // 1秒待機してからスクリーンショット撮影
+        }
+      }
+    } catch (error) {
+      console.error('Error creating building:', error)
+    }
+  }, [project.buildingInfo, ifcUrl])
+
+  // ボリュームチェック結果のキーをメモ化（変更検知用）
+  const volumeCheckKey = useMemo(() => {
+    if (!volumeCheckResult) return null
+    return `${volumeCheckResult.isCompliant}_${volumeCheckResult.checkPoints.length}_${volumeCheckResult.complianceRate}`
+  }, [volumeCheckResult])
+
+  // Volume check visualization - Three.jsシーン外で管理
+  const volumeCheckVisualization = useMemo(() => {
+    if (!showVolumeCheck || !volumeCheckResult) return null
+
+    console.log('🎨 Creating volume check visualization', {
+      showVolumeCheck,
+      hasDetailedResult: !!volumeCheckResult.detailedResult,
+      checkPointsCount: volumeCheckResult.checkPoints?.length || 0
+    })
+
+    const group = new THREE.Group()
+    // detailedResultがある場合はそれを使用、なければ通常のcheckPointsを使用
+    const checkPoints = volumeCheckResult.detailedResult?.checkPoints || volumeCheckResult.checkPoints
+
+    // 測定高平面（半透明の青い平面）
+    const planeSize = 100
+    const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize)
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4a90e2,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide
+    })
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial)
+    plane.rotation.x = -Math.PI / 2
+    plane.position.y = volumeCheckResult.regulation.measurementHeight
+    group.add(plane)
+
+    // ヒートマップ（違反度合いに応じた色の円）
+    let violationCount = 0
+    let complianceCount = 0
+    
+    checkPoints.forEach((point: any, index: number) => {
+      // detailedResultの場合はtotalShadowHours、通常はshadowHoursを使用
+      const shadowHours = point.totalShadowHours !== undefined ? point.totalShadowHours : point.shadowHours
+      
+      // 最初の5ポイントだけログ出力
+      if (index < 5) {
+        console.log(`Point ${index}:`, {
+          x: point.x,
+          y: point.y,
+          shadowHours,
+          applicableLimit: point.applicableLimit,
+          isCompliant: point.isCompliant
+        })
+      }
+      
+      // 影響を受けるすべてのポイントを表示（影時間が0のポイントも含む）
+      const violationRatio = point.applicableLimit > 0 ? 
+        Math.min((shadowHours - point.applicableLimit) / point.applicableLimit, 1) : 0
+        
+        // 色を決定（緑→黄→オレンジ→赤）
+        let color
+        if (point.isCompliant) {
+          color = new THREE.Color(0x4caf50) // 緑（適合）
+        } else if (violationRatio < 0.25) {
+          color = new THREE.Color(0xffeb3b) // 黄（軽微な違反）
+        } else if (violationRatio < 0.5) {
+          color = new THREE.Color(0xff9800) // オレンジ（中程度の違反）
+        } else {
+          color = new THREE.Color(0xf44336) // 赤（重大な違反）
+        }
+
+        // 円形のマーカー
+        const circleGeometry = new THREE.CircleGeometry(0.5, 16)
+        const circleMaterial = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.7,
+          side: THREE.DoubleSide
+        })
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial)
+        circle.rotation.x = -Math.PI / 2
+        circle.position.set(
+          point.x,
+          volumeCheckResult.regulation.measurementHeight + 0.01,
+          point.y
+        )
+        
+        // メタデータを保存（アニメーション用）
+        circle.userData = {
+          pointKey: `${point.x},${point.y}`,
+          baseOpacity: 0.7,
+          baseColor: color,
+          isInShadow: false
+        }
+        
+        group.add(circle)
+        
+        if (point.isCompliant) {
+          complianceCount++
+        } else {
+          violationCount++
+        }
+      // }  // このif文を削除して、すべてのポイントを表示
+    })
+    
+    console.log('🎯 Volume check summary:', {
+      totalPoints: checkPoints.length,
+      complianceCount,
+      violationCount
+    })
+
+    return group
+  }, [showVolumeCheck, volumeCheckResult])
+
+  // 太陽位置の更新
+  useEffect(() => {
+    if (!sunLightRef.current || !sceneRef.current) return
+
+    try {
+      const hours = Math.floor(currentTime)
+      const minutes = (currentTime - hours) * 60
+      // 現在の年から1年前の冬至を使用
+      const currentYear = new Date().getFullYear()
+      const winterSolsticeYear = currentYear - 1
+      const sunPosition = calculateSunPosition(
+        new Date(winterSolsticeYear, 11, 21, hours, minutes), // Winter solstice (1年前)
+        project.location.latitude,
+        project.location.longitude
+      )
+
+      if (sunPosition.altitude > 0) {
+        const distance = 50
+        const azimuthRad = (sunPosition.azimuth - 180) * Math.PI / 180
+        const altitudeRad = sunPosition.altitude * Math.PI / 180
+
+        sunLightRef.current.position.set(
+          distance * Math.sin(azimuthRad) * Math.cos(altitudeRad),
+          distance * Math.sin(altitudeRad),
+          distance * Math.cos(azimuthRad) * Math.cos(altitudeRad)
+        )
+        sunLightRef.current.intensity = Math.max(0.5, sunPosition.altitude / 45)
+        sunLightRef.current.visible = true
+        sunLightRef.current.castShadow = true
+        if (shadowCasterRef.current) {
+          shadowCasterRef.current.castShadow = true
+        }
+      } else {
+        sunLightRef.current.visible = false
+      }
+    } catch (error) {
+      console.error('Error updating sun position:', error)
+    }
+  }, [currentTime, project.location.latitude, project.location.longitude])
+
+  // ボリュームチェックの視覚化
+  useEffect(() => {
+    if (!sceneRef.current) return
+
+    try {
+      // 既存の視覚化を削除
+      if (volumeVisualizationRef.current) {
+        sceneRef.current.remove(volumeVisualizationRef.current)
+        // ジオメトリとマテリアルのクリーンアップ
+        volumeVisualizationRef.current.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose()
+            if (child.material instanceof THREE.Material) {
+              child.material.dispose()
+            }
+          }
+        })
+        volumeVisualizationRef.current = null
+      }
+
+      // 新しい視覚化を追加
+      if (volumeCheckVisualization && showVolumeCheck) {
+        volumeVisualizationRef.current = volumeCheckVisualization
+        sceneRef.current.add(volumeCheckVisualization)
+      }
+    } catch (error) {
+      console.error('Error updating volume check visualization:', error)
+    }
+  }, [volumeCheckVisualization, showVolumeCheck])
+
+  // 現在時刻の影とボリュームチェックの連動
+  useEffect(() => {
+    if (!showVolumeCheck || !volumeVisualizationRef.current || !sunLightRef.current || !buildingRef.current || !volumeCheckResult) {
+      return
+    }
+
+    try {
+      const shadowRay = new THREE.Raycaster()
+      const sunDirection = sunLightRef.current.position.clone().normalize().negate()
+      
+      volumeVisualizationRef.current.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.userData.pointKey) {
+          const [x, y] = child.userData.pointKey.split(',').map(Number)
+          const origin = new THREE.Vector3(
+            x,
+            volumeCheckResult.regulation.measurementHeight,
+            y
+          )
+          
+          shadowRay.set(origin, sunDirection)
+          const intersects = shadowRay.intersectObject(buildingRef.current!, true)
+          
+          const isCurrentlyInShadow = intersects.length > 0
+          const material = child.material as THREE.MeshBasicMaterial
+          
+          if (isCurrentlyInShadow) {
+            // 現在影の中にある点は強調表示
+            material.opacity = 1.0
+            // 白い輪郭を追加して強調
+            if (!child.userData.highlight) {
+              const highlightGeometry = new THREE.RingGeometry(0.5, 0.6, 16)
+              const highlightMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+              })
+              const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial)
+              highlight.rotation.x = -Math.PI / 2
+              highlight.position.copy(child.position)
+              highlight.position.y += 0.001
+              child.userData.highlight = highlight
+              child.parent?.add(highlight)
+            }
+          } else {
+            // 影の外にある点は通常の透明度
+            material.opacity = child.userData.baseOpacity || 0.7
+            // ハイライトを削除
+            if (child.userData.highlight) {
+              child.parent?.remove(child.userData.highlight)
+              child.userData.highlight.geometry.dispose()
+              ;(child.userData.highlight.material as THREE.Material).dispose()
+              child.userData.highlight = null
+            }
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Error updating shadow-volume check integration:', error)
+    }
+  }, [currentTime, showVolumeCheck, volumeCheckResult])
+
 
   // IFCファイルの読み込み
   useEffect(() => {
@@ -375,7 +584,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
     if (showShadows && sceneRef.current) {
       updateSunPosition(dateTime)
     }
-  }, [dateTime, showShadows])
+  }, [dateTime, showShadows, project.location.latitude, project.location.longitude, project.location.address])
 
   // 精密な太陽位置更新関数
   const updateSunPosition = async (date: Date) => {
@@ -607,7 +816,7 @@ function calculateSunPosition(date: Date, latitude: number, longitude: number) {
   )
   
   return {
-    altitude: altitude,
-    azimuth: azimuth + Math.PI, // 北を0度とする
+    altitude: altitude * 180 / Math.PI,
+    azimuth: ((azimuth + Math.PI) * 180 / Math.PI) % 360, // 北を0度とする
   }
 }

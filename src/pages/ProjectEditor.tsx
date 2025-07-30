@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container,
   Grid,
@@ -49,6 +49,7 @@ const steps = ['敷地設定', '建物情報設定', '面積・規制情報', '�
 export default function ProjectEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const { currentProject, updateProject, updateProjectAsync, projects, setCurrentProject, deleteProject, setError, setLoading } = useProjectStore()
@@ -162,6 +163,17 @@ export default function ProjectEditor() {
       }
     }
   }, [])
+
+  // URLパラメータからstepを読み取って設定
+  useEffect(() => {
+    const stepParam = searchParams.get('step')
+    if (stepParam) {
+      const stepNumber = parseInt(stepParam, 10)
+      if (!isNaN(stepNumber) && stepNumber >= 0 && stepNumber < steps.length) {
+        setActiveStep(stepNumber)
+      }
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const fetchProject = async () => {

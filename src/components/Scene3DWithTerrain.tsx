@@ -8,6 +8,7 @@ import {
 } from '@mui/icons-material'
 import { Project } from '@/types/project'
 import { mapbox3dService } from '@/services/mapbox3d.service'
+import { VolumeCheckResult } from '@/services/shadowRegulationCheck.service'
 import Scene3D from './Scene3D'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
@@ -17,6 +18,10 @@ interface Scene3DWithTerrainProps {
   dateTime?: Date
   showTerrain?: boolean
   onScreenshotReady?: (screenshot: string) => void
+  volumeCheckResult?: VolumeCheckResult | null
+  showVolumeCheck?: boolean
+  currentTime?: number
+  showShadowAnalysis?: boolean
 }
 
 export default function Scene3DWithTerrain({ 
@@ -24,7 +29,11 @@ export default function Scene3DWithTerrain({
   showShadows = true, 
   dateTime = new Date(),
   showTerrain = true,
-  onScreenshotReady
+  onScreenshotReady,
+  volumeCheckResult,
+  showVolumeCheck = false,
+  currentTime = 12,
+  showShadowAnalysis = true
 }: Scene3DWithTerrainProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const scene3dContainerRef = useRef<HTMLDivElement>(null)
@@ -292,6 +301,11 @@ export default function Scene3DWithTerrain({
             showShadows={showShadows}
             dateTime={dateTime}
             onScreenshotReady={onScreenshotReady}
+            volumeCheckResult={volumeCheckResult}
+            showVolumeCheck={showVolumeCheck}
+            currentTime={currentTime}
+            showShadowAnalysis={showShadowAnalysis}
+            showTerrain={false}
           />
         )}
       </Box>

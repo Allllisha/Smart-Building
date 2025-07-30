@@ -92,6 +92,12 @@ class SolarDataService {
       
       const dateStr = adjustedDate.toISOString().split('T')[0]
       
+      // 元の日付が範囲外の場合は天文計算を使用
+      if (date < minDate || date > maxDate) {
+        console.log('📅 日付がAPI範囲外のため天文計算を使用:', date.toISOString().split('T')[0])
+        return this.calculateAstronomicalData(latitude, longitude, date)
+      }
+      
       // 太陽位置データと日の出・日の入りを並列取得
       const [positionResponse, sunTimesResponse] = await Promise.all([
         axios.get(`${this.baseUrl}/forecast`, {
@@ -346,6 +352,39 @@ class SolarDataService {
     const solarNoon = baseDate.toISOString()
 
     return { sunrise, sunset, solarNoon }
+  }
+
+  /**
+   * 天文計算による太陽データの取得（API範囲外の日付用）
+   */
+  private calculateAstronomicalData(latitude: number, longitude: number, date: Date): DailySolarData {
+    const sunTimes = this.calculateSunTimesFallback(latitude, longitude, date)
+    const sunrise = new Date(sunTimes.sunrise)
+    const sunset = new Date(sunTimes.sunset)
+    
+    // 1時間ごとの太陽位置を生成
+    const hourlyData: HourlySolarPosition[] = []
+    for (let hour = 0; hour < 24; hour++) {
+      const time = new Date(date)
+      time.setHours(hour, 0, 0, 0)
+      
+      const position = this.calculateSunPosition(date, time, latitude, 0) // longitudeは0を仮で使用
+      const isDayTime = time >= sunrise && time <= sunset && position.altitude > 0
+      
+      hourlyData.push({
+        time: time.toISOString(),
+        altitude: position.altitude,
+        azimuth: position.azimuth,
+        isDayTime
+      })
+    }
+    
+    return {
+      sunrise: sunTimes.sunrise,
+      sunset: sunTimes.sunset,
+      solarNoon: sunTimes.solarNoon,
+      hourlyData
+    }
   }
 }
 

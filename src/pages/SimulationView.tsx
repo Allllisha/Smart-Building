@@ -9,6 +9,8 @@ import {
   Box,
   Slider,
   FormControl,
+  FormControlLabel,
+  Switch,
   InputLabel,
   Select,
   MenuItem,
@@ -49,19 +51,23 @@ export default function SimulationView() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'))
   
-  const [selectedDate, setSelectedDate] = useState(new Date(2025, 11, 21)) // 冬至日を初期値に
+  // 現在の年から1年前の冬至を初期値に
+  const currentYear = new Date().getFullYear()
+  const winterSolsticeYear = currentYear - 1
+  const [selectedDate, setSelectedDate] = useState(new Date(winterSolsticeYear, 11, 21)) // 冬至日を初期値に
   const [selectedTime, setSelectedTime] = useState(12) // 12時
   const [isPlaying, setIsPlaying] = useState(false)
   const [showShadows, setShowShadows] = useState(true)
   const [volumeCheckResult, setVolumeCheckResult] = useState<VolumeCheckResult | null>(null)
   const [isCheckingRegulation, setIsCheckingRegulation] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+  const [showVolumeCheck] = useState(false) // 一旦無効化
 
   // レスポンシブな右パネル幅の計算
   const getResponsiveWidth = () => {
-    if (isMobile) return Math.min(window.innerWidth * 0.9, 400) // モバイル: 画面幅の90%、最大400px
-    if (isTablet) return Math.min(window.innerWidth * 0.45, 480) // タブレット: 画面幅の45%、最大480px
-    return 520 // デスクトップ: 固定520px
+    if (isMobile) return Math.min(window.innerWidth * 0.9, 450) // モバイル: 画面幅の90%、最大450px
+    if (isTablet) return Math.min(window.innerWidth * 0.5, 600) // タブレット: 画面幅の50%、最大600px
+    return 680 // デスクトップ: 固定680px
   }
 
   const [rightPanelWidth, setRightPanelWidth] = useState(getResponsiveWidth())
@@ -203,18 +209,18 @@ export default function SimulationView() {
       const deltaX = startX - e.clientX
       
       // レスポンシブな最小・最大幅の設定
-      let minWidth = 400
+      let minWidth = 450
       let maxWidth = window.innerWidth * 0.7 // 画面幅の70%まで
       
       if (isMobile) {
-        minWidth = 350
-        maxWidth = Math.min(window.innerWidth * 0.95, 450)
+        minWidth = 400
+        maxWidth = Math.min(window.innerWidth * 0.95, 500)
       } else if (isTablet) {
-        minWidth = 420
-        maxWidth = Math.min(window.innerWidth * 0.6, 600)
+        minWidth = 500
+        maxWidth = Math.min(window.innerWidth * 0.65, 700)
       } else {
-        minWidth = 480
-        maxWidth = Math.min(window.innerWidth * 0.5, 800)
+        minWidth = 600
+        maxWidth = Math.min(window.innerWidth * 0.6, 900)
       }
       
       const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX))
@@ -316,21 +322,48 @@ export default function SimulationView() {
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
-              onClick={() => navigate(`/project/${currentProject.id}`)}
+              size="small"
+              onClick={() => navigate(`/project/${currentProject.id}?step=0`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              Project Editor
+              1. 敷地設定
             </Button>
             <Button
-              variant="contained"
-              onClick={() => navigate(`/project/${currentProject.id}/estimation`)}
+              variant="outlined"
+              size="small"
+              onClick={() => navigate(`/project/${currentProject.id}?step=1`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              Cost Analysis
+              2. 建物情報
             </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate(`/project/${currentProject.id}?step=2`)}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              3. 面積・規制
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate(`/project/${currentProject.id}?step=3`)}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              4. クライアント
+            </Button>
+            <Box sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 2, ml: 1 }}>
+              <Button
+                variant="contained"
+                onClick={() => navigate(`/project/${currentProject.id}/estimation`)}
+                sx={{ textTransform: 'none', fontWeight: 500 }}
+              >
+                Cost Analysis
+              </Button>
+            </Box>
           </Box>
         </Box>
       </Box>
@@ -356,6 +389,10 @@ export default function SimulationView() {
             dateTime={getDateTime()}
             showTerrain={true}
             onScreenshotReady={handleScreenshotReady}
+            volumeCheckResult={volumeCheckResult}
+            showVolumeCheck={showVolumeCheck}
+            currentTime={selectedTime}
+            showShadowAnalysis={true}
           />
         </Box>
         
@@ -486,23 +523,48 @@ export default function SimulationView() {
                     {isPlaying ? 'Pause' : 'Play'}
                   </Button>
                 </Box>
-                <Slider
-                  value={selectedTime}
-                  onChange={(_, value) => setSelectedTime(value as number)}
-                  min={6}
-                  max={18}
-                  step={0.5}
-                  marks={[
-                    { value: 6, label: '06:00' },
-                    { value: 9, label: '09:00' },
-                    { value: 12, label: '12:00' },
-                    { value: 15, label: '15:00' },
-                    { value: 18, label: '18:00' },
-                  ]}
-                  sx={{ mt: 2, mb: 1 }}
-                />
+                <Box sx={{ position: 'relative', mt: 2, mb: 1 }}>
+                  {/* 規制時間帯の背景ハイライト */}
+                  {volumeCheckResult && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        left: `${((volumeCheckResult.regulation.timeRange.start - 6) / 12) * 100}%`,
+                        width: `${((volumeCheckResult.regulation.timeRange.end - volumeCheckResult.regulation.timeRange.start) / 12) * 100}%`,
+                        height: 8,
+                        bgcolor: 'warning.light',
+                        opacity: 0.3,
+                        borderRadius: 1,
+                        zIndex: 0,
+                      }}
+                    />
+                  )}
+                  <Slider
+                    value={selectedTime}
+                    onChange={(_, value) => setSelectedTime(value as number)}
+                    min={6}
+                    max={18}
+                    step={0.5}
+                    marks={[
+                      { value: 6, label: '06:00' },
+                      { value: 9, label: '09:00' },
+                      { value: 12, label: '12:00' },
+                      { value: 15, label: '15:00' },
+                      { value: 18, label: '18:00' },
+                    ]}
+                    sx={{ 
+                      position: 'relative',
+                      zIndex: 1,
+                    }}
+                  />
+                </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
-                  Analysis period: 06:00 - 18:00 (Shadow regulation: 08:00 - 16:00)
+                  Analysis period: 06:00 - 18:00 
+                  {volumeCheckResult && (
+                    <span> (Shadow regulation: {volumeCheckResult.regulation.timeRange.start}:00 - {volumeCheckResult.regulation.timeRange.end}:00)</span>
+                  )}
                 </Typography>
               </Box>
 
@@ -830,6 +892,7 @@ export default function SimulationView() {
               >
                 {isCheckingRegulation ? 'Analyzing...' : 'Run Shadow Analysis'}
               </Button>
+              
               
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', fontStyle: 'italic' }}>
                 Re-run analysis after modifying building parameters
