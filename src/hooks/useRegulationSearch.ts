@@ -312,10 +312,24 @@ export function useRegulationSearch(
                 isRequired: false
               };
             } else {
+              // nameがオブジェクトの場合の処理
+              let name = '';
+              let description = item.description || item.details || '';
+              
+              if (typeof item.name === 'object' && item.name !== null) {
+                // nameオブジェクトから適切なテキストを抽出
+                name = item.name.title || item.name.name || '行政指導項目';
+                if (!description && item.name.description) {
+                  description = item.name.description;
+                }
+              } else {
+                name = String(item.name || item);
+              }
+              
               return {
                 id: `guidance-${Date.now()}-${index}`,
-                name: item.name || String(item),
-                description: item.description || item.details || '',
+                name: name,
+                description: description,
                 isRequired: false
               };
             }
@@ -436,10 +450,24 @@ export function useRegulationSearch(
             isRequired: false
           };
         } else {
+          // nameがオブジェクトの場合の処理
+          let name = '';
+          let description = item.description || item.details || '';
+          
+          if (typeof item.name === 'object' && item.name !== null) {
+            // nameオブジェクトから適切なテキストを抽出
+            name = item.name.title || item.name.name || '行政指導項目';
+            if (!description && item.name.description) {
+              description = item.name.description;
+            }
+          } else {
+            name = String(item.name || item);
+          }
+          
           return {
             id: `guidance-${Date.now()}-${index}`,
-            name: item.name || String(item),
-            description: item.description || item.details || '',
+            name: name,
+            description: description,
             isRequired: false
           };
         }
