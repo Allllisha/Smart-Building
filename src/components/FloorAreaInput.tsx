@@ -258,9 +258,9 @@ export const FloorAreaInput: React.FC<FloorAreaInputProps> = ({
                           }
                         </IconButton>
                         <Chip 
-                          label={detail.floor === 0 ? '1F' : `${detail.floor + 1}F`}
+                          label={`${detail.floor}F`}
                           size="small"
-                          color={detail.floor === 0 ? 'primary' : 'default'}
+                          color={detail.floor === 1 ? 'primary' : 'default'}
                         />
                       </Box>
                     </TableCell>
@@ -276,7 +276,7 @@ export const FloorAreaInput: React.FC<FloorAreaInputProps> = ({
                         sx={{ width: 100 }}
                         inputProps={{ min: 0, step: 0.1 }}
                         placeholder="0"
-                        disabled={detail.floor === 0 && buildingInfo.usage === '共同住宅'}
+                        disabled={detail.floor === 1 && buildingInfo.usage === '共同住宅'}
                       />
                     </TableCell>
                     <TableCell align="right">

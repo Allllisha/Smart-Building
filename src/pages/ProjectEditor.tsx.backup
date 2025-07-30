@@ -40,9 +40,6 @@ import { FloorAreaInput } from '@/components/FloorAreaInput'
 import { searchComprehensiveInfo, RegulationInfo } from '@/api/webSearchApi'
 import { Stack, Alert } from '@mui/material'
 import { People as PeopleIcon } from '@mui/icons-material'
-import { useRegulationSearch } from '@/hooks/useRegulationSearch'
-import { RegulationInfoDisplay } from '@/components/RegulationInfoDisplay'
-import { ZoningInfoDisplay } from '@/components/ZoningInfoDisplay'
 
 const steps = ['敷地設定', '建物情報設定', '面積・規制情報', 'クライアント情報']
 
@@ -55,9 +52,36 @@ export default function ProjectEditor() {
   const [activeStep, setActiveStep] = useState(0)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  // 統合された規制情報検索フック
-  const { state: regulationState, searchRegulations, debouncedSearch } = useRegulationSearch(currentProject)
+  const [shadowRegulation, setShadowRegulation] = useState<ShadowRegulation>({
+    targetArea: '',
+    targetBuildings: '',
+    measurementHeight: '',
+    measurementTime: '',
+    range5to10m: '',
+    rangeOver10m: '',
+    isLoading: true
+  })
+  const [zoningInfo, setZoningInfo] = useState<ZoningInfo>({
+    zoningType: '',
+    buildingCoverageRatio: 0,
+    floorAreaRatio: 0,
+    heightLimit: '',
+    heightDistrict: ''
+  })
+  const [administrativeGuidanceItems, setAdministrativeGuidanceItems] = useState<AdministrativeGuidanceItem[]>([])
   
+  // Web検索の状態
+  const [webSearchResults, setWebSearchResults] = useState<{
+    urbanPlanning?: RegulationInfo;
+    sunlightRegulation?: RegulationInfo;
+    administrativeGuidance?: string[];
+    searchedAt?: string;
+  }>({})
+  const [isWebSearchLoading, setIsWebSearchLoading] = useState(false)
+  const [webSearchError, setWebSearchError] = useState<string | null>(null)
+  const [regulationDataCache, setRegulationDataCache] = useState<Map<string, any>>(new Map())
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const previousAddressRef = useRef<string>('')
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isMapUpdateRef = useRef<boolean>(false)
   
@@ -190,23 +214,95 @@ export default function ProjectEditor() {
     fetchProject()
   }, [id]) // 依存配列を最小限に
 
-  // 規制情報の自動検索は useRegulationSearch フック内で処理される
+  // プロジェクト読み込み完了時に保存された規制情報を復元
+  useEffect(() => {
+    if (currentProject && currentProject.siteInfo) {
+      // 日影規制情報の復元
+      if (currentProject.siteInfo.shadowRegulation && 
+          currentProject.siteInfo.shadowRegulation.targetArea) {
+        console.log('📋 保存された日影規制情報を復元');
+        setShadowRegulation({
+          targetArea: currentProject.siteInfo.shadowRegulation.targetArea,
+          targetBuildings: currentProject.siteInfo.shadowRegulation.targetBuilding,
+          measurementHeight: String(currentProject.siteInfo.shadowRegulation.measurementHeight),
+          measurementTime: currentProject.siteInfo.shadowRegulation.measurementTime,
+          range5to10m: String(currentProject.siteInfo.shadowRegulation.allowedShadowTime5to10m),
+          rangeOver10m: String(currentProject.siteInfo.shadowRegulation.allowedShadowTimeOver10m),
+          isLoading: false
+        });
+      }
+      
+      // 行政指導情報の復元
+      // 詳細情報が保存されている場合はそれを使用
+      if (currentProject.siteInfo.administrativeGuidanceDetails && 
+          currentProject.siteInfo.administrativeGuidanceDetails.length > 0) {
+        console.log('📋 保存された行政指導詳細情報を復元');
+        setAdministrativeGuidanceItems(currentProject.siteInfo.administrativeGuidanceDetails);
+      } 
+      // 詳細情報がない場合は、チェックされた項目から復元（後方互換性）
+      else if (currentProject.siteInfo.administrativeGuidance) {
+        const savedItems = Object.entries(currentProject.siteInfo.administrativeGuidance)
+          .filter(([_, value]) => value === true)
+          .map(([key, _]) => {
+            // 保存されたキーから表示名を生成（後方互換性のため）
+            const displayNames: { [key: string]: string } = {
+              urbanPlanningAct: '都市計画法開発行為',
+              administrativeGuidance: '行政指導',
+              greenOrdinance: 'みどりの条例',
+              landscapePlan: '景観計画',
+              welfareEnvironment: '福祉環境整備要綱',
+              midHighRiseOrdinance: '中高層条例',
+              embankmentRegulation: '盛土規制法'
+            };
+            
+            return {
+              id: key,
+              name: displayNames[key] || key.replace(/([A-Z])/g, ' $1').trim(),
+              isRequired: false,
+              description: ''
+            };
+          });
+        
+        if (savedItems.length > 0) {
+          console.log('📋 保存された行政指導情報を復元（後方互換）:', savedItems);
+          setAdministrativeGuidanceItems(savedItems);
+        }
+      }
+    }
+  }, [currentProject?.id]); // プロジェクトIDが変わったときのみ実行
 
-  // 住所変更時の規制情報自動検索
+  // プロジェクト読み込み完了時に規制情報を自動取得（デバウンス付き）
   useEffect(() => {
     if (currentProject?.location.address && currentProject.location.address.trim()) {
-      // マップからの更新の場合はスキップ
-      if (isMapUpdateRef.current) {
-        isMapUpdateRef.current = false
+      const currentAddress = currentProject.location.address.trim()
+      
+      // 同じ住所なら再検索しない
+      if (currentAddress === previousAddressRef.current) {
         return
       }
       
-      // デバウンス付き検索を実行
-      debouncedSearch(currentProject.location.address)
-    }
-  }, [currentProject?.location.address, debouncedSearch])
-
-  /* 削除予定の古い実装
+      // マップからの更新の場合はスキップ
+      if (isMapUpdateRef.current) {
+        isMapUpdateRef.current = false
+        previousAddressRef.current = currentAddress
+        return
+      }
+      
+      // 既存のタイマーをキャンセル
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      
+      // 入力中フラグを表示
+      setShadowRegulation(prev => ({ ...prev, isLoading: true }))
+      
+      // 3秒待ってから検索を実行（長めに設定）
+      debounceTimerRef.current = setTimeout(() => {
+        // console.log('📍 住所入力完了、規制情報を取得中:', currentAddress)
+        previousAddressRef.current = currentAddress
+      
+      // 規制情報取得を即座に開始（キャッシュ機能付き）
+      const fetchRegulations = async () => {
         const cacheKey = currentProject.location.address.trim()
         
         // キャッシュチェック
@@ -651,9 +747,8 @@ export default function ProjectEditor() {
       }
     }
   }, [currentProject?.id, currentProject?.location.address])
-  */
 
-  /* Web検索を実行する関数 - 古い実装
+  // Web検索を実行する関数
   const performWebSearch = async (address: string) => {
     try {
       setIsWebSearchLoading(true)
@@ -711,22 +806,12 @@ export default function ProjectEditor() {
       setIsWebSearchLoading(false)
     }
   }
-  */
+
 
   // 建物情報が変更されたときに規制適合性をチェック
   useEffect(() => {
-    if (currentProject && regulationState.shadowRegulation.data && !regulationState.shadowRegulation.isLoading) {
-      // 新しい検索フックのデータ構造に対応
-      const shadowRegulationOld = {
-        targetArea: regulationState.shadowRegulation.data.targetArea,
-        targetBuildings: regulationState.shadowRegulation.data.targetBuildings,
-        measurementHeight: regulationState.shadowRegulation.data.measurementHeight,
-        measurementTime: regulationState.shadowRegulation.data.measurementTime,
-        range5to10m: regulationState.shadowRegulation.data.range5to10m,
-        rangeOver10m: regulationState.shadowRegulation.data.rangeOver10m,
-        isLoading: false
-      }
-      const compliance = checkRegulationCompliance(currentProject.buildingInfo, shadowRegulationOld)
+    if (currentProject && !shadowRegulation.isLoading && shadowRegulation.targetArea) {
+      const compliance = checkRegulationCompliance(currentProject.buildingInfo, shadowRegulation)
       // 適合性結果をコンソールに出力（実際の実装では状態管理や通知で表示）
       if (compliance.warnings.length > 0) {
         console.log('日影規制警告:', compliance.warnings)
@@ -735,7 +820,7 @@ export default function ProjectEditor() {
         console.error('日影規制違反:', compliance.violations)
       }
     }
-  }, [currentProject?.buildingInfo, regulationState.shadowRegulation])
+  }, [currentProject?.buildingInfo, shadowRegulation])
 
   // Auto-save functionality
   useEffect(() => {
@@ -1629,42 +1714,356 @@ export default function ProjectEditor() {
               面積・規制情報
             </Typography>
             <Grid container spacing={4}>
-              <Grid size={{ xs: 12 }}>
-                <ZoningInfoDisplay
-                  zoningState={regulationState.zoningInfo}
-                  siteInfo={currentProject.siteInfo}
-                  onRefresh={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['zoning'] })}
-                  onSiteInfoChange={(updates) => {
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Typography variant="h6" gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                  都市計画情報（AIが自動取得・参考表示）
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="用途地域"
+                  value={currentProject.siteInfo.zoningType ?? ''}
+                  onChange={(e) =>
                     debouncedUpdateProject(currentProject.id, {
-                      siteInfo: { ...currentProject.siteInfo, ...updates }
+                      siteInfo: { ...currentProject.siteInfo, zoningType: e.target.value },
                     })
-                  }}
+                  }
+                  placeholder="例：第一種住居地域"
+                  helperText={zoningInfo.zoningType ? `AI取得結果: ${zoningInfo.zoningType}` : "住所入力後にAIが自動取得します"}
+                  margin="normal"
                 />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <Divider sx={{ my: 3 }} />
-                <RegulationInfoDisplay
-                  searchState={regulationState}
-                  administrativeGuidance={currentProject.siteInfo.administrativeGuidance}
-                  onRefreshShadow={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['shadow'] })}
-                  onRefreshAdminGuidance={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['administrative'] })}
-                  onAdminGuidanceChange={(itemId, checked) => {
-                    const updatedGuidance = {
-                      ...currentProject.siteInfo.administrativeGuidance,
-                      [itemId]: checked,
-                    };
+                <TextField
+                  fullWidth
+                  label="建ぺい率 (%)"
+                  type="number"
+                  value={currentProject.siteInfo.buildingCoverage?.toString() ?? ''}
+                  onChange={(e) =>
                     debouncedUpdateProject(currentProject.id, {
-                      siteInfo: {
-                        ...currentProject.siteInfo,
-                        administrativeGuidance: updatedGuidance,
-                        administrativeGuidanceDetails: regulationState.administrativeGuidance.data || currentProject.siteInfo.administrativeGuidanceDetails || [],
-                      },
-                    });
-                  }}
+                      siteInfo: { ...currentProject.siteInfo, buildingCoverage: Number(e.target.value) || 0 },
+                    })
+                  }
+                  onFocus={(e) => e.target.select()}
+                  placeholder="60"
+                  helperText={zoningInfo.buildingCoverageRatio !== 0 && zoningInfo.buildingCoverageRatio ? `AI取得結果: ${zoningInfo.buildingCoverageRatio}%` : "建築基準法による建築面積の敷地面積に対する割合"}
+                  margin="normal"
                 />
+                <TextField
+                  fullWidth
+                  label="容積率 (%)"
+                  type="number"
+                  value={currentProject.siteInfo.floorAreaRatio?.toString() ?? ''}
+                  onChange={(e) =>
+                    debouncedUpdateProject(currentProject.id, {
+                      siteInfo: { ...currentProject.siteInfo, floorAreaRatio: Number(e.target.value) || 0 },
+                    })
+                  }
+                  onFocus={(e) => e.target.select()}
+                  placeholder="200"
+                  helperText={zoningInfo.floorAreaRatio !== 0 && zoningInfo.floorAreaRatio ? `AI取得結果: ${zoningInfo.floorAreaRatio}%` : "建築基準法による延床面積の敷地面積に対する割合"}
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  label="高さ制限"
+                  value={currentProject.siteInfo.heightLimit ?? ''}
+                  onChange={(e) =>
+                    debouncedUpdateProject(currentProject.id, {
+                      siteInfo: { ...currentProject.siteInfo, heightLimit: e.target.value },
+                    })
+                  }
+                  placeholder="例：10m"
+                  helperText={zoningInfo.heightLimit ? `AI取得結果: ${zoningInfo.heightLimit}` : "建築基準法・地域条例による高さの上限"}
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  label="高度地区"
+                  value={currentProject.siteInfo.heightDistrict ?? ''}
+                  onChange={(e) =>
+                    debouncedUpdateProject(currentProject.id, {
+                      siteInfo: { ...currentProject.siteInfo, heightDistrict: e.target.value },
+                    })
+                  }
+                  placeholder="例：第二種高度地区"
+                  helperText={zoningInfo.heightDistrict ? `AI取得結果: ${zoningInfo.heightDistrict}` : "高度地区の指定"}
+                  margin="normal"
+                />
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="subtitle1">
+                    行政指導・要綱（AIが自動取得・適用判定）
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      // 強制的に再検索を実行
+                      setAdministrativeGuidanceItems([]);
+                      setIsWebSearchLoading(true);
+                      
+                      // 保存された行政指導情報を一時的にクリア
+                      debouncedUpdateProject(currentProject.id, {
+                        siteInfo: {
+                          ...currentProject.siteInfo,
+                          administrativeGuidance: {},
+                          administrativeGuidanceDetails: []
+                        }
+                      });
+                      
+                      // アドレスを一時的に変更して再検索をトリガー
+                      const currentAddress = currentProject.location.address;
+                      previousAddressRef.current = '';
+                      setTimeout(() => {
+                        debouncedUpdateProject(currentProject.id, {
+                          location: { ...currentProject.location, address: currentAddress }
+                        });
+                      }, 200);
+                    }}
+                    disabled={isWebSearchLoading}
+                  >
+                    {isWebSearchLoading ? '検索中...' : '再検索'}
+                  </Button>
+                </Box>
+                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+                  建物の規模・用途に応じて適用される行政指導をAIが判定します
+                </Typography>
+                <FormGroup>
+                  {administrativeGuidanceItems.map((item) => {
+                    // item.nameが文字列でない場合の処理
+                    let itemName = ''
+                    let itemDescription = item.description || ''
+                    
+                    if (typeof item.name === 'string') {
+                      // IDが表示されている場合の処理
+                      if (item.name.startsWith('fallback-guidance-')) {
+                        itemName = '行政指導項目が表示できませんでした'
+                      } else {
+                        itemName = item.name
+                      }
+                    } else if (typeof item.name === 'object' && item.name !== null) {
+                      // nameがオブジェクトの場合、purposeやapplicableScopeから名称を生成
+                      const nameObj = item.name as any
+                      if (nameObj.purpose) {
+                        itemName = '建築指導要綱'
+                        itemDescription = nameObj.purpose
+                      } else if (nameObj.applicableScope) {
+                        itemName = '中高層建築物指導要綱'
+                        itemDescription = `適用範囲: ${JSON.stringify(nameObj.applicableScope)}`
+                      } else {
+                        itemName = '行政指導項目'
+                        itemDescription = JSON.stringify(nameObj)
+                      }
+                    } else {
+                      itemName = String(item.name)
+                    }
+                    
+                    return (
+                      <Box key={item.id} sx={{ mb: 1 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={currentProject.siteInfo.administrativeGuidance[item.id] || false}
+                              onChange={(e) => {
+                                // チェックボックスの状態を保存
+                                const updatedGuidance = {
+                                  ...currentProject.siteInfo.administrativeGuidance,
+                                  [item.id]: e.target.checked,
+                                };
+                                
+                                // 詳細情報も一緒に保存（初回のみ）
+                                const updatedDetails = currentProject.siteInfo.administrativeGuidanceDetails || administrativeGuidanceItems;
+                                
+                                debouncedUpdateProject(currentProject.id, {
+                                  siteInfo: {
+                                    ...currentProject.siteInfo,
+                                    administrativeGuidance: updatedGuidance,
+                                    administrativeGuidanceDetails: updatedDetails,
+                                  },
+                                })
+                              }}
+                              color={item.isRequired ? 'error' : 'primary'}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography variant="body2" component="span">
+                                {itemName}
+                                {item.isRequired && (
+                                  <Typography component="span" color="error" sx={{ ml: 1 }}>
+                                    *必須
+                                  </Typography>
+                                )}
+                              </Typography>
+                              {(itemDescription || item.description) && (
+                                <Typography variant="caption" display="block" color="text.secondary">
+                                  {(() => {
+                                    const desc = itemDescription || item.description;
+                                    if (typeof desc === 'string') {
+                                      return desc;
+                                    } else if (Array.isArray(desc)) {
+                                      // 配列の場合は箇条書きで表示
+                                      return (
+                                        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                                          {desc.map((line, index) => (
+                                            <li key={index}>{line}</li>
+                                          ))}
+                                        </Box>
+                                      );
+                                    } else if (typeof desc === 'object' && desc !== null) {
+                                      return desc.details || JSON.stringify(desc);
+                                    }
+                                    return String(desc);
+                                  })()}
+                                </Typography>
+                              )}
+                              {item.applicableConditions && (
+                                <Typography variant="caption" display="block" color="primary.main">
+                                  適用条件: {item.applicableConditions}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </Box>
+                    )
+                  })}
+                  
+                  {administrativeGuidanceItems.length === 0 && !isWebSearchLoading && (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      住所入力後にAIが適用される行政指導を自動判定します
+                    </Typography>
+                  )}
+                  {isWebSearchLoading && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+                      <CircularProgress size={20} />
+                      <Typography variant="body2" color="text.secondary">
+                        行政指導情報を取得中...
+                      </Typography>
+                    </Box>
+                  )}
+                  {administrativeGuidanceItems.every(item => item.name.startsWith('fallback-guidance-')) && !isWebSearchLoading && (
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      行政指導情報の取得に失敗しました。再検索ボタンをクリックして再度取得してください。
+                    </Alert>
+                  )}
+                </FormGroup>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="h6" sx={{ color: 'primary.main' }}>
+                    日影規制（AIが自動取得・参考表示）
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      // 日影規制情報の再検索を実行
+                      setShadowRegulation(prev => ({ ...prev, isLoading: true, error: undefined }));
+                      setZoningInfo({ zoningType: '', buildingCoverageRatio: 0, floorAreaRatio: 0, heightLimit: '', heightDistrict: '' });
+                      
+                      // 保存された日影規制情報を一時的にクリア
+                      debouncedUpdateProject(currentProject.id, {
+                        siteInfo: {
+                          ...currentProject.siteInfo,
+                          shadowRegulation: undefined
+                        }
+                      });
+                      
+                      // アドレスを一時的に変更して再検索をトリガー
+                      const currentAddress = currentProject.location.address;
+                      previousAddressRef.current = '';
+                      setTimeout(() => {
+                        debouncedUpdateProject(currentProject.id, {
+                          location: { ...currentProject.location, address: currentAddress }
+                        });
+                      }, 200);
+                    }}
+                    disabled={shadowRegulation.isLoading}
+                  >
+                    {shadowRegulation.isLoading ? '検索中...' : '再検索'}
+                  </Button>
+                </Box>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  敷地の位置情報から、該当する日影規制の情報をAIが自動的に取得します
+                </Typography>
+                
+                {shadowRegulation.isLoading ? (
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 3, 
+                    bgcolor: 'grey.50', 
+                    borderRadius: 2, 
+                    border: '1px solid', 
+                    borderColor: 'grey.200',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    <CircularProgress size={20} />
+                    <Typography variant="body2" color="text.secondary">
+                      AIが日影規制情報を解析中...
+                    </Typography>
+                  </Box>
+                ) : shadowRegulation.error ? (
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 3, 
+                    bgcolor: 'error.50', 
+                    borderRadius: 2, 
+                    border: '1px solid', 
+                    borderColor: 'error.200' 
+                  }}>
+                    <Typography variant="body2" color="error.main">
+                      {shadowRegulation.error}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      住所を正確に入力し直すか、地図上で位置を指定してください
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 3, 
+                    bgcolor: shadowRegulation.targetArea ? 'primary.50' : 'grey.50', 
+                    borderRadius: 2, 
+                    border: '1px solid', 
+                    borderColor: shadowRegulation.targetArea ? 'primary.200' : 'grey.200' 
+                  }}>
+                    {shadowRegulation.targetArea ? (
+                      <>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>規制対象地域:</strong> {shadowRegulation.targetArea}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>規制対象建築物:</strong> {shadowRegulation.targetBuildings}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>測定面高さ:</strong> {shadowRegulation.measurementHeight}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>測定時間帯:</strong> {shadowRegulation.measurementTime}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>5-10m範囲:</strong> {shadowRegulation.range5to10m}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>10m超範囲:</strong> {shadowRegulation.rangeOver10m}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        日影規制情報を取得できませんでした。「再検索」ボタンをクリックして再度取得してください。
+                      </Typography>
+                    )}
+                    
+                    {shadowRegulation.targetArea && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                        ※ この情報は{currentProject?.location.address ? `「${currentProject.location.address}」` : '指定された住所'}の自治体条例に基づき、AIが自動取得・解析したものです
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </Grid>
             </Grid>
-
             
             {/* ナビゲーションボタン */}
             <Box sx={{ 

@@ -40,6 +40,7 @@ export interface ProjectLocation {
 export interface BuildingInfo {
   usage?: BuildingUsage
   structure?: StructureType
+  structureDetail?: string // 構造が「その他」の場合の詳細
   floors?: number
   units?: number // 共同住宅の場合
   totalFloorArea?: number // 延床面積
@@ -75,6 +76,7 @@ export interface SiteInfo {
   shadowRegulation?: ShadowRegulation // 日影規制
   otherRegulations: string[] // その他地域地区
   administrativeGuidance: AdministrativeGuidance
+  administrativeGuidanceDetails?: AdministrativeGuidanceItem[] // AI取得した行政指導の詳細情報
 }
 
 export interface ShadowRegulation {
