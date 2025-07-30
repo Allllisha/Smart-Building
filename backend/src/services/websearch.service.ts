@@ -470,7 +470,7 @@ export class WebSearchService {
    * 検索結果から日影規制情報を抽出
    */
   private extractSunlightRegulation(searchResults: string): RegulationInfo {
-    const info: RegulationInfo = {};
+    let info: RegulationInfo = {};
 
     // 日影規制の詳細情報を抽出
     const sunlightInfo: any = {};

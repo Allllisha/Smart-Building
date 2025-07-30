@@ -803,8 +803,11 @@ export default function ProjectEditor() {
       // Show success message (optional)
       console.log('プロジェクトを保存しました')
       
-      // Navigate to dashboard
-      navigate('/dashboard')
+      // 保存成功のフィードバックを表示（実際の実装では適切なUIコンポーネントを使用）
+      alert('プロジェクトを保存しました')
+      
+      // ダッシュボードに戻らず、現在の画面に留まる
+      // navigate('/dashboard')
     } catch (error) {
       console.error('保存エラー:', error)
       setError('プロジェクトの保存に失敗しました')
