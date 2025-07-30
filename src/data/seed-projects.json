@@ -1,0 +1,115 @@
+{
+  "projects": [
+    {
+      "name": "白山1丁目マンション計画",
+      "location": {
+        "address": "東京都文京区白山1丁目",
+        "latitude": 35.7247,
+        "longitude": 139.7517
+      },
+      "siteInfo": {
+        "landType": "宅地",
+        "siteArea": 352.18,
+        "effectiveSiteArea": 352.18,
+        "zoningType": "商業地域",
+        "buildingCoverage": 60,
+        "floorAreaRatio": 300,
+        "heightLimit": "",
+        "heightDistrict": "",
+        "shadowRegulation": {
+          "measurementHeight": 4.0,
+          "measurementTime": "午前8時〜午後4時",
+          "range5to10m": "4.0時間",
+          "rangeOver10m": "2.5時間"
+        },
+        "otherRegulations": [],
+        "administrativeGuidance": {}
+      },
+      "buildingInfo": {
+        "usage": "共同住宅",
+        "structure": "壁式鉄筋コンクリート造",
+        "floors": 5,
+        "units": 18,
+        "totalFloorArea": 1322.92,
+        "maxHeight": 15100,
+        "foundationHeight": 300,
+        "buildingArea": 285.12,
+        "effectiveArea": 1285.64,
+        "constructionArea": 1902.05,
+        "floorDetails": [
+          {
+            "floor": 1,
+            "residentialArea": 145.16,
+            "capacityArea": 95.12,
+            "nonCapacityArea": 77.16
+          },
+          {
+            "floor": 2,
+            "residentialArea": 285.12,
+            "capacityArea": 160.90,
+            "nonCapacityArea": 23.34
+          },
+          {
+            "floor": 3,
+            "residentialArea": 285.12,
+            "capacityArea": 160.90,
+            "nonCapacityArea": 23.34
+          },
+          {
+            "floor": 4,
+            "residentialArea": 285.12,
+            "capacityArea": 160.90,
+            "nonCapacityArea": 23.34
+          },
+          {
+            "floor": 5,
+            "residentialArea": 285.12,
+            "capacityArea": 160.90,
+            "nonCapacityArea": 0.00
+          }
+        ],
+        "unitTypes": [
+          {
+            "typeName": "Atype",
+            "exclusiveArea": 69.98,
+            "mbArea": 0.25,
+            "balconyArea": 8.12,
+            "units": 4,
+            "layoutType": "2LDK"
+          },
+          {
+            "typeName": "Btype",
+            "exclusiveArea": 69.98,
+            "mbArea": 0.25,
+            "balconyArea": 10.46,
+            "units": 4,
+            "layoutType": "2LDK"
+          },
+          {
+            "typeName": "Ctype",
+            "exclusiveArea": 69.98,
+            "mbArea": 0.25,
+            "balconyArea": 10.46,
+            "units": 5,
+            "layoutType": "2LDK"
+          },
+          {
+            "typeName": "Dtype",
+            "exclusiveArea": 75.18,
+            "mbArea": 0.51,
+            "balconyArea": 12.35,
+            "units": 5,
+            "layoutType": "3LDK"
+          }
+        ]
+      },
+      "parkingPlan": {
+        "parkingSpaces": 6,
+        "bicycleSpaces": 18,
+        "motorcycleSpaces": 6,
+        "greenArea": 65.0
+      },
+      "specialNotes": "敷地の面積・形状・方位については実測の必要があります。関係官庁との打合せは未了です。"
+    }
+  ]
+}

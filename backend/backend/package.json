@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@types/multer": "^2.0.0",
+    "@types/uuid": "^10.0.0",
+    "multer": "^2.0.2",
+    "uuid": "^11.1.0"
+  }
+}

@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart_building_planner_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smart_building_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smart_building_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_building_planner}
+      TZ: Asia/Tokyo
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smart_building_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: smart_building_planner_backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8001}:8001"
+    environment:
+      NODE_ENV: development
+      PORT: 8001
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-smart_building_planner}
+      DB_USER: ${POSTGRES_USER:-smart_building_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-smart_building_pass}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_IDLE_TIMEOUT: ${DB_IDLE_TIMEOUT:-30000}
+      DB_CONNECTION_TIMEOUT: ${DB_CONNECTION_TIMEOUT:-2000}
+      # Azure OpenAI
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME}
+      # Azure AI Foundry (for Bing Search)
+      AZURE_AI_FOUNDRY_ENDPOINT: ${AZURE_AI_FOUNDRY_ENDPOINT}
+      AZURE_BING_SEARCH_AGENT_ID: ${AZURE_BING_SEARCH_AGENT_ID}
+      # Azure Authentication
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      # Azure Storage
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      AZURE_STORAGE_CONTAINER_BIM: ${AZURE_STORAGE_CONTAINER_BIM:-bim-files}
+      AZURE_STORAGE_CONTAINER_REPORTS: ${AZURE_STORAGE_CONTAINER_REPORTS:-reports}
+      # CORS
+      CORS_ORIGIN: http://localhost:3000
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/package.json:/app/package.json
+      - ./backend/package-lock.json:/app/package-lock.json
+      - ./backend/tsconfig.json:/app/tsconfig.json
+      - ./backend/nodemon.json:/app/nodemon.json
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    container_name: smart_building_planner_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8001/api
+      VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
+      VITE_WEATHER_API_URL: ${VITE_WEATHER_API_URL:-https://api.open-meteo.com/v1}
+      VITE_API_TIMEOUT: ${VITE_API_TIMEOUT:-120000}
+      VITE_AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      VITE_AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.node.json:/app/tsconfig.node.json
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: smart_building_planner_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,34 @@
+# フロントエンド用Dockerfile
+FROM node:20-alpine AS builder
+
+# 作業ディレクトリ設定
+WORKDIR /app
+
+# 依存関係ファイルをコピー
+COPY package*.json ./
+
+# 依存関係をインストール
+RUN npm ci
+
+# ソースコードをコピー
+COPY . .
+
+# ビルド
+RUN npm run build
+
+# 本番用イメージ
+FROM node:20-alpine
+
+WORKDIR /app
+
+# ビルド成果物をコピー
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+
+# 本番用依存関係のみインストール
+RUN npm ci --production
+
+# Viteのプレビューサーバーを使用
+EXPOSE 3000
+
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
