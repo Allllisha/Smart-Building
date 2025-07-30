@@ -56,7 +56,10 @@ export default function ProjectEditor() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   // 統合された規制情報検索フック
-  const { state: regulationState, searchRegulations, debouncedSearch } = useRegulationSearch(currentProject)
+  const { state: regulationState, searchRegulations, debouncedSearch } = useRegulationSearch(
+    currentProject,
+    (updates) => debouncedUpdateProject(currentProject!.id, updates)
+  )
   
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isMapUpdateRef = useRef<boolean>(false)
@@ -802,9 +805,6 @@ export default function ProjectEditor() {
       
       // Show success message (optional)
       console.log('プロジェクトを保存しました')
-      
-      // 保存成功のフィードバックを表示（実際の実装では適切なUIコンポーネントを使用）
-      alert('プロジェクトを保存しました')
       
       // ダッシュボードに戻らず、現在の画面に留まる
       // navigate('/dashboard')

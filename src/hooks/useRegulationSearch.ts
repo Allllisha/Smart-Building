@@ -26,7 +26,10 @@ function createInitialItemState<T>(): RegulationItemState<T> {
   };
 }
 
-export function useRegulationSearch(currentProject: Project | null) {
+export function useRegulationSearch(
+  currentProject: Project | null,
+  onDataUpdate?: (updates: Partial<Project>) => void
+) {
   // 統合された状態管理
   const [state, setState] = useState<RegulationSearchState>({
     shadowRegulation: createInitialItemState(),
@@ -280,6 +283,48 @@ export function useRegulationSearch(currentProject: Project | null) {
       // キャッシュに保存
       saveToCache(trimmedAddress, searchResult);
       
+      // プロジェクトに保存
+      if (onDataUpdate && currentProject) {
+        const updates: any = { siteInfo: { ...currentProject.siteInfo } };
+        
+        // 日影規制情報の保存
+        if (searchTypes.includes('shadow') && searchResult.shadowRegulation) {
+          const shadowData = searchResult.shadowRegulation;
+          if (shadowData.targetArea) {
+            updates.siteInfo.shadowRegulation = {
+              targetArea: shadowData.targetArea,
+              targetBuilding: shadowData.targetBuildings || '',
+              measurementHeight: parseFloat(shadowData.measurementHeight || '0') || 0,
+              measurementTime: shadowData.timeRange || shadowData.measurementTime || '',
+              allowedShadowTime5to10m: parseFloat(shadowData.shadowTimeLimit || '0') || 0,
+              allowedShadowTimeOver10m: parseFloat(shadowData.rangeOver10m || '0') || 0
+            };
+          }
+        }
+        
+        // 行政指導情報の保存
+        if (searchTypes.includes('administrative') && searchResult.administrativeGuidance) {
+          updates.siteInfo.administrativeGuidanceDetails = searchResult.administrativeGuidance.map((item: any, index: number) => {
+            if (typeof item === 'string') {
+              return {
+                id: `guidance-${Date.now()}-${index}`,
+                name: item,
+                isRequired: false
+              };
+            } else {
+              return {
+                id: `guidance-${Date.now()}-${index}`,
+                name: item.name || String(item),
+                description: item.description || item.details || '',
+                isRequired: false
+              };
+            }
+          });
+        }
+        
+        onDataUpdate(updates);
+      }
+      
     } catch (error) {
       console.error('規制情報の検索エラー:', error);
       searchTypes.forEach(type => {
@@ -305,7 +350,7 @@ export function useRegulationSearch(currentProject: Project | null) {
         }
       });
     }
-  }, [currentProject, state, updateItemState, restoreFromProject, getFromCache, performWebSearch, saveToCache]);
+  }, [currentProject, state, updateItemState, restoreFromProject, getFromCache, performWebSearch, saveToCache, onDataUpdate]);
 
   // 検索結果を状態に適用
   const applySearchResult = useCallback((
