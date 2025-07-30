@@ -522,8 +522,10 @@ export class WebSearchService {
       }
     }
 
-    // 日影時間制限の抽出
+    // 日影時間制限の抽出（5-10m範囲）
     const shadowTimeLimitPatterns = [
+      /5m?[〜～-]10m?[^。]*?(\d+時間)/,
+      /敷地境界線から5m[^。]*?10m[^。]*?(\d+時間)/,
       /許容される[^。]*?時間[^。]*?([^。]+)/,
       /日影時間[：:\s]*([^\n\r。]+)/,
       /(\d+時間以内)/
@@ -533,6 +535,21 @@ export class WebSearchService {
       const match = searchResults.match(pattern);
       if (match) {
         sunlightInfo.shadowTimeLimit = match[1].trim();
+        break;
+      }
+    }
+
+    // 10m超範囲の抽出
+    const rangeOver10mPatterns = [
+      /10m?超[^。]*?(\d+時間)/,
+      /10m?を超える[^。]*?(\d+時間)/,
+      /敷地境界線から10m[^。]*?超[^。]*?(\d+時間)/
+    ];
+    
+    for (const pattern of rangeOver10mPatterns) {
+      const match = searchResults.match(pattern);
+      if (match) {
+        sunlightInfo.rangeOver10m = match[1].trim();
         break;
       }
     }
@@ -552,9 +569,10 @@ export class WebSearchService {
     }
 
     if (Object.keys(sunlightInfo).length > 0) {
-      info.sunlightRegulation = sunlightInfo;
+      info = sunlightInfo; // sunlightInfoを直接返す
     }
 
+    console.log('☀️ Extracted sunlight regulation info:', info);
     return info;
   }
 
@@ -752,7 +770,7 @@ ${searchResults}
 
     // 日影規制情報の抽出
     const sunlightRegulation = this.extractSunlightRegulation(searchResults);
-    if (Object.keys(sunlightRegulation).length > 0 && sunlightRegulation.sunlightRegulation) {
+    if (Object.keys(sunlightRegulation).length > 0) {
       result.sunlightRegulation = sunlightRegulation;
     }
 

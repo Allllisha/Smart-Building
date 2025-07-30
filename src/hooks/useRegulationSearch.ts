@@ -170,6 +170,7 @@ export function useRegulationSearch(currentProject: Project | null) {
         }
 
         const result = await response.json();
+        console.log(`${type}検索結果:`, result);
         return { type, result };
       } catch (error) {
         console.error(`${type}検索エラー:`, error);
@@ -182,6 +183,7 @@ export function useRegulationSearch(currentProject: Project | null) {
 
     results.forEach(({ status, value }) => {
       if (status === 'fulfilled' && value.result.success && value.result.data) {
+        console.log(`処理中 ${value.type}:`, value.result.data);
         switch (value.type) {
           case 'shadow':
             searchResult.shadowRegulation = value.result.data.sunlightRegulation;
@@ -314,13 +316,18 @@ export function useRegulationSearch(currentProject: Project | null) {
 
     // 日影規制情報
     if (searchTypes.includes('shadow') && result.shadowRegulation) {
+      console.log('日影規制データマッピング前:', result.shadowRegulation);
+      
+      // sunlightRegulationという名前で来る場合もあるので、それも確認
+      const shadowRegData = result.shadowRegulation.sunlightRegulation || result.shadowRegulation;
+      
       const shadowData = {
-        targetArea: result.shadowRegulation.targetArea || '',
-        targetBuildings: result.shadowRegulation.targetBuildings || '',
-        measurementHeight: result.shadowRegulation.measurementHeight || '',
-        measurementTime: result.shadowRegulation.timeRange || '',
-        range5to10m: result.shadowRegulation.shadowTimeLimit || '',
-        rangeOver10m: result.shadowRegulation.rangeOver10m || ''
+        targetArea: shadowRegData.targetArea || '',
+        targetBuildings: shadowRegData.targetBuildings || '',
+        measurementHeight: shadowRegData.measurementHeight || '',
+        measurementTime: shadowRegData.timeRange || shadowRegData.measurementTime || '',
+        range5to10m: shadowRegData.shadowTimeLimit || shadowRegData.range5to10m || '',
+        rangeOver10m: shadowRegData.rangeOver10m || ''
       };
       
       // 有効なデータがある場合のみ設定
