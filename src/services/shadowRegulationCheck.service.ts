@@ -1,7 +1,7 @@
 import { Project } from '@/types/project'
 import { detailedLocationAnalysisService } from './detailedLocationAnalysis.service'
 import { detailedShadowCalculationService, DetailedVolumeCheckResult } from './detailedShadowCalculation.service'
-import * as THREE from 'three'
+// import * as THREE from 'three'
 
 export interface ZoneRegulation {
   zone: string                    // 用途地域
@@ -51,17 +51,123 @@ class ShadowRegulationCheckService {
   private regulationCache = new Map<string, ZoneRegulation>()
 
   /**
-   * プロジェクトの日影規制チェックを実行
+   * 敷地情報のみで日影規制チェックを実行（面積・規制情報ステップ用）
    */
-  async checkShadowRegulation(project: Project): Promise<VolumeCheckResult> {
-    console.log('🏗️ 建築基準法日影規制チェック開始')
+  async checkShadowRegulationForSite(project: Project): Promise<any> {
+    console.log('🏗️ 敷地情報による日影規制チェック開始')
+
+    // 必要なデータの存在確認
+    if (!project?.location?.latitude || !project?.location?.longitude) {
+      throw new Error('プロジェクトの位置情報が不足しています')
+    }
 
     try {
       // 詳細地域情報を取得
       const locationInfo = await detailedLocationAnalysisService.analyzeDetailedLocation(
         project.location.latitude,
         project.location.longitude,
-        project.location.address
+        project.location.address || ''
+      )
+
+      // 適用される規制を判定（プロジェクトデータを渡す）
+      const regulation = await this.determineApplicableRegulation(
+        project.location.address,
+        locationInfo.prefecture,
+        locationInfo.city,
+        locationInfo.ward,
+        project
+      )
+
+      // 敷地情報に基づく建築可能性を判定
+      const buildabilityResult = this.evaluateBuildability(project, regulation)
+      const siteArea = project.siteInfo.siteArea || 0
+      const buildingCoverage = project.siteInfo.buildingCoverage || 0
+      const floorAreaRatio = project.siteInfo.floorAreaRatio || 0
+      
+      console.log('🔍 日影規制チェック - 入力値確認:', {
+        siteArea,
+        buildingCoverage,
+        floorAreaRatio,
+        roadWidth: project.siteInfo.roadWidth,
+        buildable: buildabilityResult.isBuildable,
+        rawSiteInfo: project.siteInfo
+      })
+
+      return {
+        overallStatus: buildabilityResult.isBuildable ? 'OK' : 'NG',
+        summary: buildabilityResult.summary,
+        regulations: {
+          fiveToTenMeters: regulation.restrictions.range5to10m,
+          overTenMeters: regulation.restrictions.rangeOver10m,
+          measurementHeight: regulation.measurementHeight
+        },
+        checkItems: [
+          {
+            name: '建築可能性',
+            description: buildabilityResult.isBuildable ? '条件を満たしています' : '制約があります',
+            status: buildabilityResult.isBuildable ? 'OK' : 'NG',
+            value: buildabilityResult.isBuildable ? '可能' : '制約あり'
+          },
+          {
+            name: '敷地面積',
+            description: siteArea >= 50 ? `${siteArea}㎡（適正）` : `${siteArea}㎡（狭小）`,
+            status: siteArea >= 50 ? 'OK' : 'NG',
+            value: `${siteArea}㎡`
+          },
+          {
+            name: '建蔽率',
+            description: buildingCoverage >= 30 ? `${buildingCoverage}%（建築可能）` : buildingCoverage > 0 ? `${buildingCoverage}%（制限あり）` : '設定要確認',
+            status: buildingCoverage >= 30 ? 'OK' : buildingCoverage > 0 ? 'WARNING' : 'NG',
+            value: `${buildingCoverage}%`
+          },
+          {
+            name: '容積率',
+            description: floorAreaRatio >= 50 ? `${floorAreaRatio}%（建築可能）` : floorAreaRatio > 0 ? `${floorAreaRatio}%（制限あり）` : '設定要確認',
+            status: floorAreaRatio >= 50 ? 'OK' : floorAreaRatio > 0 ? 'WARNING' : 'NG',
+            value: `${floorAreaRatio}%`
+          },
+          {
+            name: '前面道路幅',
+            description: project.siteInfo.roadWidth ? 
+              (project.siteInfo.roadWidth >= 4 ? `${project.siteInfo.roadWidth}m（適正）` : `${project.siteInfo.roadWidth}m（狭い）`) :
+              '未設定',
+            status: project.siteInfo.roadWidth ? 
+              (project.siteInfo.roadWidth >= 4 ? 'OK' : 'WARNING') : 
+              'NG',
+            value: project.siteInfo.roadWidth ? `${project.siteInfo.roadWidth}m` : '未設定'
+          },
+          {
+            name: '日影規制',
+            description: `5-10m範囲: ${regulation.restrictions.range5to10m}時間, 10m超: ${regulation.restrictions.rangeOver10m}時間`,
+            status: regulation.restrictions.range5to10m >= 3 && regulation.restrictions.rangeOver10m >= 2 ? 'OK' : 'WARNING',
+            value: `${regulation.restrictions.range5to10m}h/${regulation.restrictions.rangeOver10m}h`
+          }
+        ]
+      }
+
+    } catch (error) {
+      console.error('敷地日影規制チェックエラー:', error)
+      throw error
+    }
+  }
+
+  /**
+   * プロジェクトの日影規制チェックを実行
+   */
+  async checkShadowRegulation(project: Project): Promise<VolumeCheckResult> {
+    console.log('🏗️ 建築基準法日影規制チェック開始')
+
+    // 必要なデータの存在確認
+    if (!project?.location?.latitude || !project?.location?.longitude) {
+      throw new Error('プロジェクトの位置情報が不足しています')
+    }
+
+    try {
+      // 詳細地域情報を取得
+      const locationInfo = await detailedLocationAnalysisService.analyzeDetailedLocation(
+        project.location.latitude,
+        project.location.longitude,
+        project.location.address || ''
       )
 
       // 適用される規制を判定（プロジェクトデータを渡す）
@@ -74,10 +180,10 @@ class ShadowRegulationCheckService {
       )
 
       // 建物が規制対象かチェック
-      const buildingHeight = project.buildingInfo.maxHeight / 1000 // mm to m
+      const buildingHeight = (project.buildingInfo.maxHeight || 3000) / 1000 // mm to m
       const isSubjectToRegulation = this.isBuildingSubjectToRegulation(
         buildingHeight,
-        project.buildingInfo.floors,
+        project.buildingInfo.floors || 1,
         regulation
       )
 
@@ -361,7 +467,7 @@ class ShadowRegulationCheckService {
   /**
    * 太陽位置計算（天文計算）
    */
-  private calculateSunPosition(date: Date, latitude: number, longitude: number) {
+  private calculateSunPosition(date: Date, latitude: number, _longitude: number) {
     const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
     const declination = 23.45 * Math.sin((360 * (284 + dayOfYear) / 365) * Math.PI / 180)
     
@@ -427,203 +533,7 @@ class ShadowRegulationCheckService {
     }
   }
 
-  /**
-   * 建物の日影を計算（従来の簡易版 - 詳細計算の後継として残す）
-   */
-  private async calculateBuildingShadow(
-    project: Project,
-    regulation: ZoneRegulation,
-    winterSolsticeData: WinterSolsticeData
-  ): Promise<VolumeCheckResult> {
-    // 建物の基本形状（簡易的な直方体として計算）
-    const buildingWidth = Math.sqrt(project.buildingInfo.buildingArea)
-    const buildingDepth = buildingWidth
-    const buildingHeight = project.buildingInfo.maxHeight / 1000 // mm to m
 
-    // チェックポイントを生成（敷地周辺に格子状に配置）
-    const checkPoints: ShadowCheckPoint[] = []
-    const gridSize = 2 // 2mグリッド
-    const checkRange = 30 // 30m範囲をチェック
-
-    for (let x = -checkRange; x <= checkRange; x += gridSize) {
-      for (let y = -checkRange; y <= checkRange; y += gridSize) {
-        // 建物内部は除外
-        if (Math.abs(x) < buildingWidth/2 && Math.abs(y) < buildingDepth/2) continue
-
-        const distanceFromBoundary = Math.max(
-          Math.abs(x) - buildingWidth/2,
-          Math.abs(y) - buildingDepth/2
-        )
-
-        // 境界から50m以内のみチェック
-        if (distanceFromBoundary > 50) continue
-
-        // この点での日影時間を計算
-        const shadowHours = this.calculateShadowHoursAtPoint(
-          x, y, buildingWidth, buildingDepth, buildingHeight,
-          winterSolsticeData, regulation
-        )
-
-        // 適用される制限時間を判定
-        const applicableLimit = distanceFromBoundary <= 10 ? 
-          regulation.restrictions.range5to10m : 
-          regulation.restrictions.rangeOver10m
-
-        const isCompliant = shadowHours <= applicableLimit
-
-        checkPoints.push({
-          x, y, distanceFromBoundary, shadowHours, isCompliant, applicableLimit
-        })
-      }
-    }
-
-    // 結果を集計
-    const violationPoints = checkPoints.filter(p => !p.isCompliant)
-    const maxViolationHours = Math.max(0, ...violationPoints.map(p => p.shadowHours - p.applicableLimit))
-    const violationArea = violationPoints.length * gridSize * gridSize
-    const complianceRate = (checkPoints.length - violationPoints.length) / checkPoints.length * 100
-
-    // 修正提案を生成
-    const recommendations = this.generateRecommendations(
-      maxViolationHours,
-      violationArea,
-      buildingHeight,
-      regulation
-    )
-
-    return {
-      isCompliant: violationPoints.length === 0,
-      regulation,
-      checkPoints,
-      maxViolationHours,
-      violationArea,
-      complianceRate,
-      recommendations
-    }
-  }
-
-  /**
-   * 特定地点での日影時間を計算
-   */
-  private calculateShadowHoursAtPoint(
-    pointX: number,
-    pointY: number,
-    buildingWidth: number,
-    buildingDepth: number,
-    buildingHeight: number,
-    winterSolsticeData: WinterSolsticeData,
-    regulation: ZoneRegulation
-  ): number {
-    let shadowHours = 0
-    const timeStep = 0.5 // 30分間隔
-
-    for (const sunData of winterSolsticeData.sunPath) {
-      // 測定時間範囲外は除外
-      if (sunData.time < regulation.timeRange.start || sunData.time > regulation.timeRange.end) {
-        continue
-      }
-
-      // 太陽が地平線下の場合は除外
-      if (sunData.altitude <= 0) continue
-
-      // この時刻に当該点が建物の影の中にあるかチェック
-      const inShadow = this.isPointInBuildingShadow(
-        pointX, pointY, regulation.measurementHeight,
-        buildingWidth, buildingDepth, buildingHeight,
-        sunData.altitude, sunData.azimuth
-      )
-
-      if (inShadow) {
-        shadowHours += timeStep
-      }
-    }
-
-    return shadowHours
-  }
-
-  /**
-   * 点が建物の影の中にあるかチェック
-   */
-  private isPointInBuildingShadow(
-    pointX: number,
-    pointY: number,
-    measurementHeight: number,
-    buildingWidth: number,
-    buildingDepth: number,
-    buildingHeight: number,
-    sunAltitude: number,
-    sunAzimuth: number
-  ): boolean {
-    // 太陽光線の方向ベクトル
-    const sunAltRad = sunAltitude * Math.PI / 180
-    const sunAzRad = sunAzimuth * Math.PI / 180
-
-    // 測定点から太陽方向への光線と建物の交差判定
-    const shadowLength = (buildingHeight - measurementHeight) / Math.tan(sunAltRad)
-    
-    if (shadowLength <= 0) return false
-
-    // 影の投影位置を計算
-    const shadowX = shadowLength * Math.sin(sunAzRad)
-    const shadowY = shadowLength * Math.cos(sunAzRad)
-
-    // 建物から見た影の範囲に測定点があるかチェック
-    const buildingCorners = [
-      { x: -buildingWidth/2, y: -buildingDepth/2 },
-      { x: buildingWidth/2, y: -buildingDepth/2 },
-      { x: buildingWidth/2, y: buildingDepth/2 },
-      { x: -buildingWidth/2, y: buildingDepth/2 }
-    ]
-
-    // 建物の各コーナーから投影される影の範囲を計算
-    const shadowPolygon = buildingCorners.map(corner => ({
-      x: corner.x + shadowX,
-      y: corner.y + shadowY
-    }))
-
-    // 点が影のポリゴン内にあるかチェック（簡易的な矩形判定）
-    const minX = Math.min(...shadowPolygon.map(p => p.x))
-    const maxX = Math.max(...shadowPolygon.map(p => p.x))
-    const minY = Math.min(...shadowPolygon.map(p => p.y))
-    const maxY = Math.max(...shadowPolygon.map(p => p.y))
-
-    return pointX >= minX && pointX <= maxX && pointY >= minY && pointY <= maxY
-  }
-
-  /**
-   * 修正提案を生成
-   */
-  private generateRecommendations(
-    maxViolationHours: number,
-    violationArea: number,
-    buildingHeight: number,
-    regulation: ZoneRegulation
-  ): string[] {
-    const recommendations: string[] = []
-
-    if (maxViolationHours > 0) {
-      // 高さの削減提案
-      const heightReduction = Math.ceil(maxViolationHours * 2) // 簡易計算
-      recommendations.push(`建物高さを${heightReduction}m程度削減することを検討してください`)
-
-      // セットバック提案
-      if (violationArea > 100) {
-        recommendations.push('建物を敷地境界から2-3mセットバックすることを検討してください')
-      }
-
-      // 形状変更提案
-      if (buildingHeight > regulation.targetHeight + 5) {
-        recommendations.push('建物の平面形状を細長くすることで日影面積を削減できます')
-      }
-
-      // 階数調整提案
-      if (regulation.zone.includes('低層')) {
-        recommendations.push('3階建て未満にすることで日影規制の対象外となります')
-      }
-    }
-
-    return recommendations
-  }
 
   /**
    * 規制対象外の場合の結果
@@ -637,6 +547,81 @@ class ShadowRegulationCheckService {
       violationArea: 0,
       complianceRate: 100,
       recommendations: ['この建物は日影規制の対象外です。']
+    }
+  }
+
+  /**
+   * 敷地情報に基づく建築可能性を評価
+   */
+  private evaluateBuildability(project: Project, regulation: ZoneRegulation): { isBuildable: boolean, summary: string } {
+    const siteArea = project.siteInfo.siteArea || 0
+    const buildingCoverage = project.siteInfo.buildingCoverage || 0
+    const floorAreaRatio = project.siteInfo.floorAreaRatio || 0
+
+    console.log('📊 建築可能性評価 - 詳細:', { 
+      siteArea, 
+      buildingCoverage, 
+      floorAreaRatio,
+      originalSiteInfo: project.siteInfo,
+      checkResults: {
+        siteAreaCheck: !siteArea,
+        buildingCoverageCheck: !buildingCoverage,
+        floorAreaRatioCheck: !floorAreaRatio
+      }
+    })
+
+    // 必要な情報が不足している場合
+    if (!siteArea) {
+      return {
+        isBuildable: false,
+        summary: '敷地面積が設定されていません。'
+      }
+    }
+    
+    if (!buildingCoverage) {
+      return {
+        isBuildable: false,
+        summary: '建蔽率が設定されていません。'
+      }
+    }
+    
+    if (!floorAreaRatio) {
+      return {
+        isBuildable: false,
+        summary: '容積率が設定されていません。'
+      }
+    }
+
+    // 基本的な制約チェック
+    const constraints = []
+    
+    // 敷地面積の最小要件チェック
+    if (siteArea < 50) {
+      constraints.push('敷地面積が狭すぎます（50㎡未満）')
+    }
+    
+    // 前面道路幅による容積率制限チェック
+    if (project.siteInfo.roadWidth && project.siteInfo.roadWidth < 4) {
+      constraints.push('前面道路幅が4m未満のため、建築基準法による制限があります')
+    }
+    
+    // 日影規制による高さ制限チェック
+    if (regulation.restrictions.range5to10m <= 2 && regulation.restrictions.rangeOver10m <= 1.5) {
+      constraints.push('厳しい日影規制のため、建築可能高さが大幅に制限される可能性があります')
+    }
+
+    // 制約がある場合
+    if (constraints.length > 0) {
+      return {
+        isBuildable: false,
+        summary: `建築に制約があります：${constraints.join('、')}`
+      }
+    }
+
+    // 建築可能と判定
+    return {
+      isBuildable: true,
+      summary: `${regulation.zone}において建築可能です。建蔽率${buildingCoverage}%、容積率${floorAreaRatio}%の範囲で建築計画を進められます。`
     }
   }
 
