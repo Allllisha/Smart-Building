@@ -85,7 +85,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
       <Grid container spacing={2}>
         {/* 都市計画情報 */}
         {urbanPlanning && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -137,7 +137,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
 
         {/* 日影規制情報 */}
         {sunlightRegulation?.sunlightRegulation && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -189,7 +189,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
 
         {/* 行政指導・要綱 */}
         {administrativeGuidance && administrativeGuidance.length > 0 && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Card variant="outlined">
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>

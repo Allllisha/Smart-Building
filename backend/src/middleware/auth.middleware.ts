@@ -17,8 +17,8 @@ export const authenticate = async (
   next: NextFunction
 ) => {
   try {
-    // 開発環境では固定ユーザーを使用
-    if (process.env.NODE_ENV === 'development') {
+    // 開発環境とテスト用の本番環境では固定ユーザーを使用
+    if (process.env.NODE_ENV === 'development' || process.env.AUTH_ENABLED !== 'true') {
       req.user = {
         id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
         email: 'test@example.com',

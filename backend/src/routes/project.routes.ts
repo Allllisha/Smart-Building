@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth.middleware'
 
 const router = Router()
 
-// すべてのルートに認証を適用
+// 認証ミドルウェアを適用
 router.use(authenticate)
 
 // プロジェクト一覧取得

@@ -106,7 +106,7 @@ export const ZoningInfoDisplay: React.FC<ZoningInfoDisplayProps> = ({
       )}
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             select
             fullWidth
@@ -124,7 +124,7 @@ export const ZoningInfoDisplay: React.FC<ZoningInfoDisplayProps> = ({
           </TextField>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             select
             fullWidth
@@ -142,7 +142,7 @@ export const ZoningInfoDisplay: React.FC<ZoningInfoDisplayProps> = ({
           </TextField>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <TextField
             type="number"
             fullWidth
@@ -161,7 +161,7 @@ export const ZoningInfoDisplay: React.FC<ZoningInfoDisplayProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <TextField
             type="number"
             fullWidth
@@ -180,7 +180,7 @@ export const ZoningInfoDisplay: React.FC<ZoningInfoDisplayProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <TextField
             fullWidth
             label="高さ制限"

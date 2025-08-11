@@ -2,32 +2,30 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTheme, useMediaQuery } from '@mui/material'
 import {
-  Container,
-  Grid,
   Paper,
   Typography,
   Box,
   Slider,
   FormControl,
-  FormControlLabel,
-  Switch,
   InputLabel,
   Select,
   MenuItem,
   Button,
   Alert,
   IconButton,
-  Tooltip,
   Chip,
   LinearProgress,
   Card,
   CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
 } from '@mui/material'
 import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   LightMode as SunIcon,
-  Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
   Info as InfoIcon,
@@ -38,10 +36,8 @@ import {
 } from '@mui/icons-material'
 import Scene3DWithTerrain from '@/components/Scene3DWithTerrain'
 import { useProjectStore } from '@/store/projectStore'
-import { solarDataService } from '@/services/solarData.service'
 import { shadowRegulationCheckService, VolumeCheckResult } from '@/services/shadowRegulationCheck.service'
 import { format } from 'date-fns'
-import { ja } from 'date-fns/locale'
 
 export default function SimulationView() {
   const { id } = useParams<{ id: string }>()
@@ -57,7 +53,7 @@ export default function SimulationView() {
   const [selectedDate, setSelectedDate] = useState(new Date(winterSolsticeYear, 11, 21)) // 冬至日を初期値に
   const [selectedTime, setSelectedTime] = useState(12) // 12時
   const [isPlaying, setIsPlaying] = useState(false)
-  const [showShadows, setShowShadows] = useState(true)
+  const [showShadows] = useState(true)
   const [volumeCheckResult, setVolumeCheckResult] = useState<VolumeCheckResult | null>(null)
   const [isCheckingRegulation, setIsCheckingRegulation] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
@@ -192,9 +188,9 @@ export default function SimulationView() {
   const checkQuickCompliance = (): boolean => {
     if (!currentProject || !volumeCheckResult) return true
     
-    const buildingHeight = currentProject.buildingInfo.maxHeight / 1000
+    const buildingHeight = (currentProject.buildingInfo.maxHeight || 0) / 1000
     const isSubjectToRegulation = buildingHeight > volumeCheckResult.regulation.targetHeight || 
-                                  currentProject.buildingInfo.floors >= volumeCheckResult.regulation.targetFloors
+                                  (currentProject.buildingInfo.floors || 1) >= volumeCheckResult.regulation.targetFloors
     
     return !isSubjectToRegulation || volumeCheckResult.isCompliant
   }
@@ -315,7 +311,7 @@ export default function SimulationView() {
             <ArchitectureIcon sx={{ fontSize: 32, color: 'primary.main' }} />
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 300, color: 'primary.main', mb: 0.5 }}>
-                Volume Study
+                3D Simulation
               </Typography>
               <Typography variant="subtitle1" sx={{ color: 'text.secondary' }}>
                 {currentProject.name}
@@ -329,7 +325,7 @@ export default function SimulationView() {
               onClick={() => navigate(`/project/${currentProject.id}?step=0`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              1. 敷地設定
+              1. 敷地情報
             </Button>
             <Button
               variant="outlined"
@@ -337,7 +333,7 @@ export default function SimulationView() {
               onClick={() => navigate(`/project/${currentProject.id}?step=1`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              2. 建物情報
+              2. 面積・規制情報
             </Button>
             <Button
               variant="outlined"
@@ -345,7 +341,7 @@ export default function SimulationView() {
               onClick={() => navigate(`/project/${currentProject.id}?step=2`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              3. 面積・規制
+              3. 建物情報設定
             </Button>
             <Button
               variant="outlined"
@@ -353,7 +349,15 @@ export default function SimulationView() {
               onClick={() => navigate(`/project/${currentProject.id}?step=3`)}
               sx={{ textTransform: 'none', fontWeight: 500 }}
             >
-              4. クライアント
+              4. 設計概要
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate(`/project/${currentProject.id}?step=4`)}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              5. クライアント情報
             </Button>
             <Box sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 2, ml: 1 }}>
               <Button
@@ -585,321 +589,8 @@ export default function SimulationView() {
               </Card>
             </Paper>
 
-            {/* ボリュームチェック結果 */}
-            <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: 'background.paper' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <AnalysisIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-                <Typography variant="h6" sx={{ fontWeight: 500, color: 'primary.main' }}>
-                  Compliance Analysis
-                </Typography>
-              </Box>
-              
-              {isCheckingRegulation ? (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <LinearProgress sx={{ mb: 3, borderRadius: 1 }} />
-                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                    Analyzing shadow regulation compliance...
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled">
-                    Performing detailed volume study based on building code
-                  </Typography>
-                </Box>
-              ) : volumeCheckResult ? (
-                <>
-                  <Box sx={{ mb: 2 }}>
-                    <Alert 
-                      severity={volumeCheckResult.isCompliant ? 'success' : 'error'}
-                      icon={volumeCheckResult.isCompliant ? <CheckIcon /> : <ErrorIcon />}
-                      sx={{ 
-                        mb: 3, 
-                        borderRadius: 2,
-                        '& .MuiAlert-message': { 
-                          fontWeight: 500,
-                          fontSize: '0.95rem'
-                        }
-                      }}
-                    >
-                      {volumeCheckResult.isCompliant ? 
-                        'Compliant with shadow regulations' : 
-                        'Non-compliant with shadow regulations'}
-                    </Alert>
-                    
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(2, 1fr)', 
-                      gap: 2,
-                      p: 2,
-                      bgcolor: 'background.default',
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider'
-                    }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          Zone Type
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                          {volumeCheckResult.regulation.zone}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          Height Threshold
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                          {volumeCheckResult.regulation.targetHeight}m+
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          Measurement Height
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                          {volumeCheckResult.regulation.measurementHeight}m
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          Compliance Rate
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          fontWeight: 600, 
-                          mt: 0.5,
-                          color: volumeCheckResult.complianceRate >= 90 ? 'success.main' : 
-                                 volumeCheckResult.complianceRate >= 70 ? 'warning.main' : 'error.main'
-                        }}>
-                          {volumeCheckResult.complianceRate.toFixed(1)}%
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          5-10m Range Limit
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                          {volumeCheckResult.regulation.restrictions.range5to10m}h max
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          10m+ Range Limit
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                          {volumeCheckResult.regulation.restrictions.rangeOver10m}h max
-                        </Typography>
-                      </Box>
-                      {volumeCheckResult.maxViolationHours > 0 && (
-                        <>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                              Max Violation Hours
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, color: 'error.main' }}>
-                              {volumeCheckResult.maxViolationHours.toFixed(1)}h
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                              Violation Area
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, color: 'error.main' }}>
-                              {volumeCheckResult.violationArea.toFixed(0)}m²
-                            </Typography>
-                          </Box>
-                        </>
-                      )}
-                      
-                      {/* 詳細計算結果の追加情報 */}
-                      {volumeCheckResult.detailedResult && (
-                        <>
-                          <Box sx={{ gridColumn: 'span 2', mt: 1, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 1, display: 'block' }}>
-                              Advanced Analysis
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Analysis Resolution</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>1m² Grid</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Check Points</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
-                                  {volumeCheckResult.detailedResult.checkPoints.length.toLocaleString()}
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Building Footprint</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
-                                  {volumeCheckResult.detailedResult.geometryAnalysis.effectiveBuildingFootprint.toFixed(0)}m²
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Shadow Volume</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
-                                  {volumeCheckResult.detailedResult.geometryAnalysis.shadowCastingVolume.toFixed(0)}m³
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Peak Violation</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
-                                  {Math.floor(volumeCheckResult.detailedResult.timeSeriesAnalysis.peakViolationTime)}:
-                                  {String(Math.round((volumeCheckResult.detailedResult.timeSeriesAnalysis.peakViolationTime % 1) * 60)).padStart(2, '0')}
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.disabled">Critical Floors</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
-                                  {volumeCheckResult.detailedResult.geometryAnalysis.criticalFloors.join(', ')}F
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </Box>
-                        </>
-                      )}
-                    </Box>
-                  </Box>
 
-                  {/* 修正提案 */}
-                  {volumeCheckResult.recommendations.length > 0 && (
-                    <Card variant="outlined" sx={{ mt: 3, bgcolor: 'info.50', border: '1px solid', borderColor: 'info.200' }}>
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <InfoIcon sx={{ mr: 1.5, color: 'info.main' }} />
-                          <Typography variant="h6" sx={{ fontWeight: 500, color: 'info.dark' }}>
-                            Design Recommendations
-                          </Typography>
-                        </Box>
-                        
-                        {/* 詳細提案がある場合は詳細表示 */}
-                        {volumeCheckResult.detailedResult?.recommendations ? (
-                          volumeCheckResult.detailedResult.recommendations.map((recommendation, index) => (
-                            <Box key={index} sx={{ 
-                              mb: 2, 
-                              p: 2.5, 
-                              bgcolor: 'background.paper', 
-                              borderRadius: 2, 
-                              border: '1px solid', 
-                              borderColor: 'divider',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                            }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-                                <Chip 
-                                  label={recommendation.priority === 'critical' ? 'Critical' : 
-                                        recommendation.priority === 'high' ? 'High' : 
-                                        recommendation.priority === 'medium' ? 'Medium' : 'Low'} 
-                                  size="small"
-                                  color={recommendation.priority === 'critical' ? 'error' : 
-                                         recommendation.priority === 'high' ? 'warning' : 
-                                         recommendation.priority === 'medium' ? 'info' : 'default'}
-                                  sx={{ mr: 1.5, fontWeight: 600, fontSize: '0.75rem' }}
-                                />
-                                <Chip 
-                                  label={recommendation.type === 'height_reduction' ? 'Height Reduction' :
-                                         recommendation.type === 'setback' ? 'Setback' :
-                                         recommendation.type === 'floor_reduction' ? 'Floor Reduction' :
-                                         recommendation.type === 'shape_modification' ? 'Shape Modification' : 'Balcony Adjustment'}
-                                  size="small" 
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.75rem', fontWeight: 500 }}
-                                />
-                              </Box>
-                              <Typography variant="body2" sx={{ mb: 2, lineHeight: 1.5, color: 'text.primary' }}>
-                                {recommendation.description}
-                              </Typography>
-                              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
-                                <Box sx={{ textAlign: 'center', p: 1, bgcolor: 'success.50', borderRadius: 1 }}>
-                                  <Typography variant="caption" color="success.dark" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    Compliance Improvement
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
-                                    +{recommendation.expectedImprovement.complianceRateImprovement.toFixed(0)}%
-                                  </Typography>
-                                </Box>
-                                <Box sx={{ textAlign: 'center', p: 1, bgcolor: 'info.50', borderRadius: 1 }}>
-                                  <Typography variant="caption" color="info.dark" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    Shadow Reduction
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'info.main' }}>
-                                    {recommendation.expectedImprovement.shadowReductionArea.toFixed(0)}m²
-                                  </Typography>
-                                </Box>
-                                <Box sx={{ textAlign: 'center', p: 1, bgcolor: 'warning.50', borderRadius: 1 }}>
-                                  <Typography variant="caption" color="warning.dark" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    Implementation Cost
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                                    {recommendation.implementationCost === 'high' ? 'High' : 
-                                     recommendation.implementationCost === 'medium' ? 'Medium' : 'Low'}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </Box>
-                          ))
-                        ) : (
-                          // 従来の簡易提案表示
-                          volumeCheckResult.recommendations.map((recommendation, index) => (
-                            <Box key={index} sx={{ 
-                              p: 2, 
-                              mb: 1.5, 
-                              bgcolor: 'background.paper', 
-                              borderRadius: 2, 
-                              border: '1px solid', 
-                              borderColor: 'divider' 
-                            }}>
-                              <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'text.primary' }}>
-                                {recommendation}
-                              </Typography>
-                            </Box>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                    No compliance analysis available
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled">
-                    Please run analysis to see results
-                  </Typography>
-                </Box>
-              )}
-            </Paper>
-
-            {/* 再チェック */}
-            <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: 'background.paper' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <AnalysisIcon sx={{ mr: 1.5, color: 'primary.main', transform: 'rotate(180deg)' }} />
-                <Typography variant="h6" sx={{ fontWeight: 500, color: 'primary.main' }}>
-                  Analysis Control
-                </Typography>
-              </Box>
-              
-              <Button
-                variant="contained" 
-                fullWidth
-                onClick={performVolumeCheck}
-                disabled={isCheckingRegulation}
-                sx={{ 
-                  py: 1.5,
-                  mb: 2,
-                  textTransform: 'none', 
-                  fontWeight: 600,
-                  fontSize: '0.95rem',
-                  borderRadius: 2
-                }}
-              >
-                {isCheckingRegulation ? 'Analyzing...' : 'Run Shadow Analysis'}
-              </Button>
-              
-              
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', fontStyle: 'italic' }}>
-                Re-run analysis after modifying building parameters
-              </Typography>
-            </Paper>
-
-            {/* 建物情報 */}
+            {/* 建物情報 - 設計概要プレビューと同じレイアウト */}
             <Paper elevation={2} sx={{ p: 3, bgcolor: 'background.paper' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <ArchitectureIcon sx={{ mr: 1.5, color: 'primary.main' }} />
@@ -907,55 +598,140 @@ export default function SimulationView() {
                   Building Information
                 </Typography>
               </Box>
+              
               <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(2, 1fr)', 
-                gap: 2,
-                p: 2,
-                bgcolor: 'background.default',
-                borderRadius: 2,
-                border: '1px solid',
-                borderColor: 'divider'
+                width: '100%', 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: 2
               }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Usage Type
+                {/* 設計概要セクション */}
+                <Box sx={{ border: '1px solid #ddd', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ 
+                    backgroundColor: '#e8e8e8', 
+                    fontWeight: 700, 
+                    textAlign: 'center',
+                    fontSize: '0.8rem',
+                    p: 1,
+                    m: 0
+                  }}>
+                    設計概要
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                    {currentProject.buildingInfo.usage}
-                  </Typography>
+                  <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.65rem', padding: '3px 6px' } }}>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', width: '30%', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>敷地詳細</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.location.address || '-'}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>敷地面積</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.siteInfo.siteArea || 0}㎡
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>用途地域</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.siteInfo.zoningType || '-'}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>建築面積</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.buildingInfo.buildingArea || 0}㎡
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>延床面積</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.buildingInfo.totalFloorArea || 0}㎡
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>建蔽率</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}>
+                            <span>
+                              {currentProject.siteInfo.siteArea && currentProject.buildingInfo.buildingArea
+                                ? `${((currentProject.buildingInfo.buildingArea / currentProject.siteInfo.siteArea) * 100).toFixed(1)}%`
+                                : '-%'}
+                            </span>
+                            <span>≦</span>
+                            <span>{currentProject.siteInfo.buildingCoverage ? `${currentProject.siteInfo.buildingCoverage}%` : '-%'}</span>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>容積率</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}>
+                            <span>
+                              {currentProject.siteInfo.siteArea && currentProject.buildingInfo.totalFloorArea
+                                ? `${((currentProject.buildingInfo.totalFloorArea / currentProject.siteInfo.siteArea) * 100).toFixed(1)}%`
+                                : '-%'}
+                            </span>
+                            <span>≦</span>
+                            <span>{currentProject.siteInfo.floorAreaRatio ? `${currentProject.siteInfo.floorAreaRatio}%` : '-%'}</span>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Structure
+
+                {/* 建物概要セクション */}
+                <Box sx={{ border: '1px solid #ddd', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ 
+                    backgroundColor: '#e8e8e8', 
+                    fontWeight: 700, 
+                    textAlign: 'center',
+                    fontSize: '0.8rem',
+                    p: 1,
+                    m: 0
+                  }}>
+                    建物概要
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                    {currentProject.buildingInfo.structure}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Floors
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                    {currentProject.buildingInfo.floors}F
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Max Height
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                    {(currentProject.buildingInfo.maxHeight / 1000).toFixed(1)}m
-                  </Typography>
-                </Box>
-                <Box sx={{ gridColumn: 'span 2' }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Building Area
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                    {currentProject.buildingInfo.buildingArea ? currentProject.buildingInfo.buildingArea.toLocaleString() : '0'}m²
-                  </Typography>
+                  <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.65rem', padding: '3px 6px' } }}>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', width: '30%', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>建築用途</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>{currentProject.buildingInfo.usage || '-'}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>構造</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.buildingInfo.structure || '-'}
+                          {currentProject.buildingInfo.structureDetail && ` (${currentProject.buildingInfo.structureDetail})`}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>規模</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>地上{currentProject.buildingInfo.floors || 0}階</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>最高高さ</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.buildingInfo.maxHeight ? (currentProject.buildingInfo.maxHeight / 1000).toFixed(2) : '0.00'}m
+                        </TableCell>
+                      </TableRow>
+                      {currentProject.buildingInfo.usage === '共同住宅' && (
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>戸数</TableCell>
+                          <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                            {currentProject.buildingInfo.units || 0}戸
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'grey.50', padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>駐車場</TableCell>
+                        <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                          {currentProject.parkingPlan?.parkingSpaces || 0}台
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </Box>
               </Box>
             </Paper>

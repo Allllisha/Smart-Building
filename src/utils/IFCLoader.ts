@@ -3,20 +3,19 @@ import * as WebIFC from 'web-ifc'
 
 export class IFCLoader {
   private ifcAPI: WebIFC.IfcAPI
-  private wasmPath: string = ''
   
   constructor() {
     this.ifcAPI = new WebIFC.IfcAPI()
   }
 
-  setWasmPath(path: string) {
-    this.wasmPath = path
+  setWasmPath(_path: string) {
+    // wasmPath is no longer used
   }
 
   async load(
     url: string,
     onLoad: (model: THREE.Group) => void,
-    onProgress?: (xhr: ProgressEvent) => void,
+    _onProgress?: (xhr: ProgressEvent) => void,
     onError?: (error: Error) => void
   ) {
     try {
@@ -43,10 +42,12 @@ export class IFCLoader {
         const material = this.getMaterial(flatMesh)
         const mesh = new THREE.Mesh(geometry, material)
         
-        // 変換行列を適用
-        const matrix = new THREE.Matrix4()
-        matrix.fromArray(flatMesh.matrix)
-        mesh.applyMatrix4(matrix)
+        // 変換行列を適用（FlatMeshに matrix プロパティがない場合はスキップ）
+        if ('matrix' in flatMesh && Array.isArray((flatMesh as any).matrix)) {
+          const matrix = new THREE.Matrix4()
+          matrix.fromArray((flatMesh as any).matrix)
+          mesh.applyMatrix4(matrix)
+        }
         
         mesh.castShadow = true
         mesh.receiveShadow = true
@@ -84,12 +85,16 @@ export class IFCLoader {
     const geometry = new THREE.BufferGeometry()
     
     // 頂点データ
-    const vertices = new Float32Array(flatMesh.vertices)
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+    if ('vertices' in flatMesh && flatMesh.vertices) {
+      const vertices = new Float32Array(flatMesh.vertices as ArrayLike<number>)
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+    }
     
     // インデックスデータ
-    const indices = new Uint32Array(flatMesh.indices)
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1))
+    if ('indices' in flatMesh && flatMesh.indices) {
+      const indices = new Uint32Array(flatMesh.indices as ArrayLike<number>)
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1))
+    }
     
     // 法線を計算
     geometry.computeVertexNormals()
@@ -99,12 +104,21 @@ export class IFCLoader {
 
   private getMaterial(flatMesh: WebIFC.FlatMesh): THREE.Material {
     // カラーデータからマテリアルを作成
-    const color = new THREE.Color(flatMesh.color.x, flatMesh.color.y, flatMesh.color.z)
+    let color = new THREE.Color(0xcccccc) // デフォルトカラー
+    let opacity = 1
+    
+    if ('color' in flatMesh && flatMesh.color) {
+      const c = flatMesh.color as any
+      if ('x' in c && 'y' in c && 'z' in c) {
+        color = new THREE.Color(c.x, c.y, c.z)
+        opacity = 'w' in c ? c.w : 1
+      }
+    }
     
     return new THREE.MeshStandardMaterial({
       color,
-      opacity: flatMesh.color.w,
-      transparent: flatMesh.color.w < 1,
+      opacity,
+      transparent: opacity < 1,
       side: THREE.DoubleSide,
     })
   }

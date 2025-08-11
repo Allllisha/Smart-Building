@@ -3,16 +3,14 @@ import * as THREE from 'three'
 // IFC読み込みの代替実装
 // 本実装では簡易的なモックローダーを使用
 export class IFCLoaderWrapper {
-  private wasmPath: string = ''
-
-  setWasmPath(path: string) {
-    this.wasmPath = path
+  setWasmPath(_path: string) {
+    // wasmPath is no longer used
   }
 
   async load(
     url: string,
     onLoad: (model: THREE.Group) => void,
-    onProgress?: (xhr: ProgressEvent) => void,
+    _onProgress?: (xhr: ProgressEvent) => void,
     onError?: (error: Error) => void
   ) {
     try {

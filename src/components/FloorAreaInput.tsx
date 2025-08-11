@@ -53,7 +53,6 @@ export const FloorAreaInput: React.FC<FloorAreaInputProps> = ({
     unitTypes: true
   })
   const [selectedFloors, setSelectedFloors] = useState<Set<number>>(new Set())
-  const [showBulkApply, setShowBulkApply] = useState(false)
 
   // 既存のデータから初期化
   useEffect(() => {
@@ -76,7 +75,7 @@ export const FloorAreaInput: React.FC<FloorAreaInputProps> = ({
     }
     
     const newFloorDetails: FloorAreaDetail[] = []
-    for (let i = 1; i <= buildingInfo.floors; i++) {
+    for (let i = 1; i <= (buildingInfo.floors || 1); i++) {
       const existing = floorDetails.find(fd => fd.floor === i)
       newFloorDetails.push(existing || {
         floor: i,

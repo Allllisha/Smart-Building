@@ -30,16 +30,14 @@ export class EstimationController {
             floors: project.building_floors,
             units: project.building_units ? Number(project.building_units) : undefined,
             maxHeight: Number(project.building_max_height),
-            foundationHeight: Number(project.building_foundation_height),
             buildingArea: Number(project.building_area ?? 100),
             totalFloorArea: Number(project.building_total_floor_area ?? (project.building_area ?? 100) * project.building_floors),
             effectiveArea: Number(project.building_effective_area ?? (project.building_area ?? 100) * project.building_floors * 0.85),
             constructionArea: Number(project.building_construction_area ?? (project.building_area ?? 100) * project.building_floors * 1.1),
           },
           siteInfo: {
-            landType: project.site_land_type || '宅地',
             siteArea: Number(project.site_area || 200),
-            effectiveSiteArea: Number(project.site_effective_area || (project.site_area ? project.site_area * 0.95 : 190)),
+            frontRoadWidth: Number(project.front_road_width || 4.0),
             zoningType: project.site_zoning_type || '第一種住居地域',
             buildingCoverage: 60, // デフォルト値
             floorAreaRatio: 200, // デフォルト値

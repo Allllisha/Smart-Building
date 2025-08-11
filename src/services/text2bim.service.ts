@@ -1,4 +1,5 @@
-import { BuildingInfo, SiteInfo, ParkingPlan, FloorAreaDetail, UnitType, BuildingShape } from '../types/project'
+import { BuildingInfo, SiteInfo, ParkingPlan, BuildingShape } from '../types/project'
+// FloorAreaDetail and UnitType not used in this file
 import * as THREE from 'three'
 
 export interface Text2BIMResult {
@@ -44,8 +45,8 @@ export class Text2BIMService {
    */
   generateDetailedBuilding(
     buildingInfo: BuildingInfo,
-    siteInfo?: SiteInfo,
-    parkingPlan?: ParkingPlan
+    _siteInfo?: SiteInfo,
+    _parkingPlan?: ParkingPlan
   ): Text2BIMResult {
     // 建物の基本寸法を計算
     const dimensions = this.calculateBuildingDimensions(buildingInfo)
@@ -60,7 +61,7 @@ export class Text2BIMService {
     const shape = this.determineBuildingShape(buildingInfo, dimensions)
     
     // 基礎部分の生成
-    const foundationGeometry = this.createFoundation(dimensions, buildingInfo.foundationHeight || 100)
+    const foundationGeometry = this.createFoundation(dimensions, 100)
     
     // 各階のジオメトリを生成
     const { floorGeometries, mainGeometry, balconyGeometries, setbackInfo } = 
@@ -100,7 +101,8 @@ export class Text2BIMService {
     const area = buildingArea || 100 // デフォルト100㎡
     
     // 延床面積と建築面積の比率から建物の形状を推定
-    const floorAreaRatio = totalFloorArea && area ? totalFloorArea / area : floors
+    // const floorAreaRatio = totalFloorArea && area ? totalFloorArea / area : floors
+    void totalFloorArea, area, floors // suppress unused warning
     
     // 用途に応じたアスペクト比を決定
     let aspectRatio = 1.0 // デフォルトは正方形
@@ -173,31 +175,31 @@ export class Text2BIMService {
   private calculateFloorHeights(buildingInfo: BuildingInfo, structuralGrid: StructuralGrid): number[] {
     const { floors, usage } = buildingInfo
     const maxHeight = buildingInfo.maxHeight || 10000 // デフォルト10m
-    const foundationHeight = buildingInfo.foundationHeight || 100 // デフォルト0.1m
+    const foundationHeight = 100 // デフォルト0.1m
     const floorHeights: number[] = []
     
     // 基礎を除いた有効高さ
     const effectiveHeight = (maxHeight - foundationHeight) / 1000 // mm to m
     
     // 用途別の標準階高
-    let standardFloorHeight = effectiveHeight / floors
+    let standardFloorHeight = effectiveHeight / (floors || 1)
     let firstFloorHeight = standardFloorHeight
     
     switch (usage) {
       case '共同住宅':
-        standardFloorHeight = Math.max(2.8, effectiveHeight / floors)
+        standardFloorHeight = Math.max(2.8, effectiveHeight / (floors || 1))
         firstFloorHeight = standardFloorHeight
         break
       case 'オフィス':
-        standardFloorHeight = Math.max(3.6, effectiveHeight / floors)
+        standardFloorHeight = Math.max(3.6, effectiveHeight / (floors || 1))
         firstFloorHeight = standardFloorHeight * 1.2 // 1階は高め
         break
       case '商業施設':
-        standardFloorHeight = Math.max(3.8, effectiveHeight / floors)
+        standardFloorHeight = Math.max(3.8, effectiveHeight / (floors || 1))
         firstFloorHeight = standardFloorHeight * 1.5 // 1階は特に高く
         break
       case '専用住宅':
-        standardFloorHeight = Math.max(2.6, effectiveHeight / floors)
+        standardFloorHeight = Math.max(2.6, effectiveHeight / (floors || 1))
         firstFloorHeight = standardFloorHeight
         break
     }
@@ -209,7 +211,7 @@ export class Text2BIMService {
     let totalHeight = firstFloorHeight
     floorHeights.push(firstFloorHeight)
     
-    for (let i = 1; i < floors; i++) {
+    for (let i = 1; i < (floors || 1); i++) {
       if (totalHeight + standardFloorHeight > effectiveHeight) {
         // 最上階は残りの高さ
         floorHeights.push(effectiveHeight - totalHeight)
@@ -237,12 +239,13 @@ export class Text2BIMService {
     let setbackRatio = 0
     
     // 延床面積と建築面積の関係から形状を推定
-    const avgFloorArea = totalFloorArea ? totalFloorArea / floors : buildingArea
+    // const avgFloorArea = totalFloorArea ? totalFloorArea / (floors || 1) : buildingArea
+    void totalFloorArea, buildingArea // suppress unused warning
     
     // 高層建物でセットバックを検討
-    if (floors > 5) {
+    if ((floors || 1) > 5) {
       hasSetback = true
-      setbackFloor = Math.floor(floors * 0.6)
+      setbackFloor = Math.floor((floors || 1) * 0.6)
       setbackRatio = 0.8
     }
     
@@ -308,7 +311,7 @@ export class Text2BIMService {
     let currentDepth = dimensions.depth
     let setbackInfo: SetbackInfo | undefined
     
-    for (let floor = 0; floor < buildingInfo.floors; floor++) {
+    for (let floor = 0; floor < (buildingInfo.floors || 1); floor++) {
       const floorHeight = floorHeights[floor]
       
       // セットバックの適用
@@ -502,13 +505,13 @@ export class Text2BIMService {
       return positions
     }
     
-    const unitsPerFloor = Math.ceil(buildingInfo.units / (buildingInfo.floors - 1))
+    const unitsPerFloor = Math.ceil(buildingInfo.units / ((buildingInfo.floors || 1) - 1))
     const balconyWidth = 3.0
     const balconyDepth = 1.5
     
     let currentHeight = floorHeights[0] // 1階をスキップ
     
-    for (let floor = 1; floor < buildingInfo.floors; floor++) {
+    for (let floor = 1; floor < (buildingInfo.floors || 1); floor++) {
       const balconiesOnFloor = Math.min(unitsPerFloor, Math.floor(dimensions.width / 4))
       const spacing = dimensions.width / (balconiesOnFloor + 1)
       
@@ -580,9 +583,9 @@ export class Text2BIMService {
       if (index) {
         for (let i = 0; i < index.count; i++) {
           // Three.js バージョン互換性対応
-          const indexValue = typeof index.getAt === 'function' 
-            ? index.getAt(i) 
-            : index.array[i]
+          const indexValue = typeof (index as any).getAt === 'function' 
+            ? (index as any).getAt(i) 
+            : (index as any).array[i]
           indices.push(indexValue + indexOffset)
         }
       }
@@ -639,7 +642,7 @@ export class Text2BIMService {
         grid: result.metadata.structuralGrid,
         foundation: {
           type: 'continuous',
-          depth: buildingInfo.foundationHeight / 1000
+          depth: 100 / 1000
         }
       },
       facades: {
@@ -690,7 +693,7 @@ export class Text2BIMService {
     const sillHeight = 0.8 // 窓台高さ
     
     // 各階に窓を配置
-    for (let floor = 0; floor < buildingInfo.floors; floor++) {
+    for (let floor = 0; floor < (buildingInfo.floors || 1); floor++) {
       const floorElevation = result.metadata.floorHeights.slice(0, floor).reduce((a, b) => a + b, 0)
       
       // 南面に均等に窓を配置
@@ -737,8 +740,8 @@ export class Text2BIMService {
     // 各住戸のドア（共同住宅の場合）
     if (buildingInfo.usage === '共同住宅' && buildingInfo.unitTypes) {
       let unitIndex = 0
-      for (let floor = 1; floor < buildingInfo.floors; floor++) {
-        const unitsOnFloor = Math.ceil(buildingInfo.units! / (buildingInfo.floors - 1))
+      for (let floor = 1; floor < (buildingInfo.floors || 1); floor++) {
+        const unitsOnFloor = Math.ceil(buildingInfo.units! / ((buildingInfo.floors || 1) - 1))
         const spacing = result.metadata.actualWidth / (unitsOnFloor + 1)
         
         for (let i = 0; i < unitsOnFloor && unitIndex < buildingInfo.units!; i++) {

@@ -23,6 +23,7 @@ export interface BuildingData {
 export class IFCGenerator {
   private ifcAPI: WebIFC.IfcAPI
   private modelID: number = 0
+  private globalIdCounter: number = 0
 
   constructor() {
     this.ifcAPI = new WebIFC.IfcAPI()
@@ -33,7 +34,7 @@ export class IFCGenerator {
   }
 
   async generateIFC(buildingData: BuildingData): Promise<Uint8Array> {
-    this.modelID = this.ifcAPI.CreateModel()
+    this.modelID = this.ifcAPI.CreateModel({ schema: WebIFC.Schemas.IFC2X3 })
 
     // プロジェクト情報の設定
     this.createProject()
@@ -73,6 +74,7 @@ export class IFCGenerator {
 
   private createProject(): number {
     const project = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCPROJECT,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -85,11 +87,13 @@ export class IFCGenerator {
       UnitsInContext: this.createUnitAssignment()
     }
 
-    return this.ifcAPI.WriteLine(this.modelID, project)
+    this.ifcAPI.WriteLine(this.modelID, project)
+    return project.expressID
   }
 
   private createSite(): number {
     const site = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCSITE,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -99,7 +103,7 @@ export class IFCGenerator {
       ObjectPlacement: this.createLocalPlacement(),
       Representation: null,
       LongName: null,
-      CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+      CompositionType: WebIFC.IFCELEMENTCOMPONENT,
       RefLatitude: null,
       RefLongitude: null,
       RefElevation: null,
@@ -108,11 +112,12 @@ export class IFCGenerator {
     }
 
     this.ifcAPI.WriteLine(this.modelID, site)
-    return site.GlobalId
+    return site.expressID
   }
 
   private createBuilding(): number {
     const building = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCBUILDING,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -122,14 +127,14 @@ export class IFCGenerator {
       ObjectPlacement: this.createLocalPlacement(),
       Representation: null,
       LongName: null,
-      CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+      CompositionType: WebIFC.IFCELEMENTCOMPONENT,
       ElevationOfRefHeight: 0.0,
       ElevationOfTerrain: 0.0,
       BuildingAddress: null
     }
 
     this.ifcAPI.WriteLine(this.modelID, building)
-    return building.GlobalId
+    return building.expressID
   }
 
   private createStoreys(floors: number): number[] {
@@ -137,6 +142,7 @@ export class IFCGenerator {
 
     for (let i = 0; i < floors; i++) {
       const storey = {
+        expressID: ++this.globalIdCounter,
         type: WebIFC.IFCBUILDINGSTOREY,
         GlobalId: this.createGuid(),
         OwnerHistory: this.createOwnerHistory(),
@@ -146,12 +152,12 @@ export class IFCGenerator {
         ObjectPlacement: this.createLocalPlacement(0, 0, i * 3), // 各階3m
         Representation: null,
         LongName: null,
-        CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+        CompositionType: WebIFC.IFCELEMENTCOMPONENT,
         Elevation: i * 3000 // mm単位
       }
 
-      const storeyId = this.ifcAPI.WriteLine(this.modelID, storey)
-      storeys.push(storeyId)
+      this.ifcAPI.WriteLine(this.modelID, storey)
+      storeys.push(storey.expressID)
     }
 
     return storeys
@@ -171,6 +177,7 @@ export class IFCGenerator {
 
     wallPositions.forEach((wallPos, index) => {
       const wall = {
+        expressID: ++this.globalIdCounter,
         type: WebIFC.IFCWALL,
         GlobalId: this.createGuid(),
         OwnerHistory: this.createOwnerHistory(),
@@ -182,8 +189,8 @@ export class IFCGenerator {
         Tag: null
       }
 
-      const wallId = this.ifcAPI.WriteLine(this.modelID, wall)
-      walls.push(wallId)
+      this.ifcAPI.WriteLine(this.modelID, wall)
+      walls.push(wall.expressID)
     })
 
     return walls
@@ -195,6 +202,7 @@ export class IFCGenerator {
 
     // 床スラブ
     const floorSlab = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCSLAB,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -204,11 +212,11 @@ export class IFCGenerator {
       ObjectPlacement: this.createLocalPlacement(),
       Representation: this.createSlabRepresentation(width, depth, 0.2),
       Tag: null,
-      PredefinedType: WebIFC.IFCSLABTYPE.FLOOR
+      PredefinedType: 0 // FLOOR
     }
 
-    const floorSlabId = this.ifcAPI.WriteLine(this.modelID, floorSlab)
-    slabs.push(floorSlabId)
+    this.ifcAPI.WriteLine(this.modelID, floorSlab)
+    slabs.push(floorSlab.expressID)
 
     return slabs
   }
@@ -220,6 +228,7 @@ export class IFCGenerator {
       buildingData.windows.forEach((windowData, index) => {
         windowData.positions.forEach((pos, posIndex) => {
           const window = {
+            expressID: ++this.globalIdCounter,
             type: WebIFC.IFCWINDOW,
             GlobalId: this.createGuid(),
             OwnerHistory: this.createOwnerHistory(),
@@ -231,8 +240,8 @@ export class IFCGenerator {
             Tag: null
           }
 
-          const windowId = this.ifcAPI.WriteLine(this.modelID, window)
-          windows.push(windowId)
+          this.ifcAPI.WriteLine(this.modelID, window)
+          windows.push(window.expressID)
         })
       })
     }
@@ -255,7 +264,7 @@ export class IFCGenerator {
       OwningUser: this.createPersonAndOrganization(),
       OwningApplication: this.createApplication(),
       State: null,
-      ChangeAction: WebIFC.IFCCHANGEACTIONENUM.ADDED,
+      ChangeAction: 0, // ADDED
       LastModifiedDate: null,
       LastModifyingUser: null,
       LastModifyingApplication: null,
@@ -324,8 +333,8 @@ export class IFCGenerator {
       Units: [
         {
           type: WebIFC.IFCSIUNIT,
-          UnitType: WebIFC.IFCUNITTYPE.LENGTHUNIT,
-          Name: WebIFC.IFCSIUNITNAME.METRE,
+          UnitType: 0, // LENGTHUNIT
+          Name: 0, // METRE
           Prefix: null
         }
       ]
@@ -413,7 +422,7 @@ export class IFCGenerator {
       type: WebIFC.IFCEXTRUDEDAREASOLID,
       SweptArea: {
         type: WebIFC.IFCRECTANGLEPROFILEDEF,
-        ProfileType: WebIFC.IFCPROFILEDEFTYPE.AREA,
+        ProfileType: 0, // AREA
         ProfileName: null,
         Position: null,
         XDim: length,
@@ -433,7 +442,7 @@ export class IFCGenerator {
       type: WebIFC.IFCEXTRUDEDAREASOLID,
       SweptArea: {
         type: WebIFC.IFCRECTANGLEPROFILEDEF,
-        ProfileType: WebIFC.IFCPROFILEDEFTYPE.AREA,
+        ProfileType: 0, // AREA
         ProfileName: null,
         Position: null,
         XDim: width,
@@ -453,7 +462,7 @@ export class IFCGenerator {
       type: WebIFC.IFCEXTRUDEDAREASOLID,
       SweptArea: {
         type: WebIFC.IFCRECTANGLEPROFILEDEF,
-        ProfileType: WebIFC.IFCPROFILEDEFTYPE.AREA,
+        ProfileType: 0, // AREA
         ProfileName: null,
         Position: null,
         XDim: width,

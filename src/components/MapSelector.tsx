@@ -4,9 +4,8 @@ import { Box, Paper, Typography, IconButton, TextField, InputAdornment, Circular
 import { MyLocation as MyLocationIcon, Search as SearchIcon } from '@mui/icons-material'
 import { ProjectLocation } from '@/types/project'
 
-// MapboxトークンをENVから取得（実際の使用時は.envファイルに設定）
+// MapboxトークンをENVから取得
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || 'your-mapbox-token'
-console.log('MapSelector: Mapbox token available:', !!mapboxgl.accessToken && mapboxgl.accessToken !== 'your-mapbox-token')
 
 interface MapSelectorProps {
   location: ProjectLocation
@@ -18,11 +17,10 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const marker = useRef<mapboxgl.Marker | null>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
+  const [isDrawing] = useState(false)
   const [polygonCoordinates, setPolygonCoordinates] = useState<[number, number][]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState<any[]>([])
 
   // 逆ジオコーディング（座標から住所を取得）
   const reverseGeocode = async (lng: number, lat: number) => {
@@ -33,7 +31,6 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
       const data = await response.json()
       if (data.features && data.features.length > 0) {
         const address = data.features[0].place_name
-        console.log('MapSelector: Setting address from reverse geocoding:', address)
         onLocationChange({
           ...location,
           latitude: lat,
@@ -51,33 +48,108 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
     }
   }
 
-  // 前方ジオコーディング（住所・施設名から座標を取得）
+  // Mapbox Search Box API（Zenrinデータ使用）による前方ジオコーディング
   const forwardGeocode = async (query: string) => {
     if (!query.trim()) return
     
     setIsSearching(true)
+    
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&language=ja&country=JP&limit=5&types=address,poi,place`
-      )
-      const data = await response.json()
-      if (data.features && data.features.length > 0) {
-        const result = data.features[0]
-        const [lng, lat] = result.center
-        console.log('MapSelector: Setting address from search:', result.place_name)
+      // 検索クエリに「東京都」を付加（部分的な住所の場合）
+      let searchQuery = query
+      if (!query.includes('東京都') && !query.includes('都')) {
+        // 世田谷区で始まる場合は東京都を付加
+        if (query.startsWith('世田谷区') || query.includes('世田谷区')) {
+          searchQuery = '東京都' + query
+        }
+      }
+      
+      // Mapbox Search Box API（Zenrinデータ使用・番地レベル対応）を使用
+      const params = new URLSearchParams({
+        q: searchQuery,
+        access_token: mapboxgl.accessToken,
+        language: 'ja',
+        country: 'JP',
+        limit: '5',
+        types: 'address,poi'
+      })
+      
+      const url = `https://api.mapbox.com/search/searchbox/v1/forward?${params.toString()}`
+      console.log('Search API URL:', url)
+      
+      const searchApiResponse = await fetch(url)
+      
+      if (!searchApiResponse.ok) {
+        console.error('Search API Error:', {
+          status: searchApiResponse.status,
+          statusText: searchApiResponse.statusText,
+          url: url
+        })
+        const errorText = await searchApiResponse.text()
+        console.error('Error response:', errorText)
+        return
+      }
+      
+      const searchData = await searchApiResponse.json()
+      console.log('Search API response:', searchData)
+      
+      if (searchData.features && searchData.features.length > 0) {
+        const result = searchData.features[0]
+        const coords = result.geometry.coordinates
+        
+        console.log('Search API result found:', {
+          name: result.properties.name,
+          full_address: result.properties.full_address,
+          coordinates: coords,
+          properties: result.properties
+        })
+        
+        // 住所の選択（full_addressまたはnameを使用）
+        const displayAddress = result.properties.name || result.properties.full_address || searchQuery
+        
         onLocationChange({
           ...location,
-          latitude: lat,
-          longitude: lng,
-          address: result.place_name,
+          latitude: coords[1],
+          longitude: coords[0],
+          address: displayAddress,
         })
-        setSearchResults(data.features)
+      } else {
+        console.log('No results found for query:', searchQuery)
       }
     } catch (error) {
-      console.error('前方ジオコーディングエラー:', error)
+      console.error('ジオコーディングエラー:', error)
     } finally {
       setIsSearching(false)
     }
+  }
+
+  // Google Geocoding APIを使用する代替実装（オプション）
+  const forwardGeocodeWithGoogle = async (query: string) => {
+    // Google Maps Geocoding APIキーが必要
+    const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    if (!googleApiKey) {
+      console.log('Google Maps API key not configured')
+      return null
+    }
+
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&language=ja&region=jp&key=${googleApiKey}`
+      )
+      const data = await response.json()
+      
+      if (data.status === 'OK' && data.results.length > 0) {
+        const result = data.results[0]
+        return {
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+          address: result.formatted_address
+        }
+      }
+    } catch (error) {
+      console.error('Google Geocoding error:', error)
+    }
+    return null
   }
 
   useEffect(() => {
@@ -106,13 +178,11 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
 
     // 地図クリックイベント
     map.current.on('click', (e) => {
-      console.log('MapSelector: Map clicked at:', e.lngLat.lng, e.lngLat.lat)
       if (isDrawing && enablePolygon) {
         const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
         setPolygonCoordinates([...polygonCoordinates, coords])
       } else {
         marker.current!.setLngLat(e.lngLat)
-        console.log('MapSelector: Starting reverse geocoding for clicked location')
         reverseGeocode(e.lngLat.lng, e.lngLat.lat)
       }
     })
@@ -207,7 +277,6 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords
-          console.log('MapSelector: Getting current location:', latitude, longitude)
           reverseGeocode(longitude, latitude)
         },
         (error) => {
@@ -267,6 +336,7 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
           }}
         />
       </Paper>
+
 
       {/* 座標表示 */}
       <Paper

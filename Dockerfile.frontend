@@ -28,7 +28,10 @@ COPY --from=builder /app/package*.json ./
 # 本番用依存関係のみインストール
 RUN npm ci --production
 
+# package.jsonに start スクリプトを追加（Azure Web App用）
+RUN npm pkg set scripts.start="vite preview --host 0.0.0.0 --port 3000"
+
 # Viteのプレビューサーバーを使用
 EXPOSE 3000
 
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["npm", "start"]

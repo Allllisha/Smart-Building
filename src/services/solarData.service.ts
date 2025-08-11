@@ -52,7 +52,7 @@ class SolarDataService {
     }
 
     // 新しいリクエストを開始
-    const promise = this.fetchDailySolarData(latitude, longitude, date, dateKey)
+    const promise = this.fetchDailySolarData(latitude, longitude, date)
     this.loadingPromises.set(dateKey, promise)
 
     try {
@@ -71,8 +71,7 @@ class SolarDataService {
   private async fetchDailySolarData(
     latitude: number,
     longitude: number,
-    date: Date,
-    dateKey: string
+    date: Date
   ): Promise<DailySolarData> {
     try {
       // Open-Meteo APIは限られた日付範囲のみサポート
@@ -299,7 +298,7 @@ class SolarDataService {
    */
   private calculateSolarPositionFallback(
     latitude: number,
-    longitude: number,
+    _longitude: number,
     dateTime: Date
   ): SolarPosition {
     const dayOfYear = Math.floor(
@@ -336,8 +335,8 @@ class SolarDataService {
    * フォールバック用の簡易日の出・日の入り計算
    */
   private calculateSunTimesFallback(
-    latitude: number,
-    longitude: number,
+    _latitude: number,
+    _longitude: number,
     date: Date
   ): SunTimes {
     // 簡易計算（実際にはもっと複雑）
@@ -359,31 +358,19 @@ class SolarDataService {
    */
   private calculateAstronomicalData(latitude: number, longitude: number, date: Date): DailySolarData {
     const sunTimes = this.calculateSunTimesFallback(latitude, longitude, date)
-    const sunrise = new Date(sunTimes.sunrise)
-    const sunset = new Date(sunTimes.sunset)
+    const hourlyPositions: { [hour: number]: SolarPosition } = {}
     
-    // 1時間ごとの太陽位置を生成
-    const hourlyData: HourlySolarPosition[] = []
+    // 24時間分のデータを生成
     for (let hour = 0; hour < 24; hour++) {
       const time = new Date(date)
       time.setHours(hour, 0, 0, 0)
-      
-      const position = this.calculateSunPosition(date, time, latitude, 0) // longitudeは0を仮で使用
-      const isDayTime = time >= sunrise && time <= sunset && position.altitude > 0
-      
-      hourlyData.push({
-        time: time.toISOString(),
-        altitude: position.altitude,
-        azimuth: position.azimuth,
-        isDayTime
-      })
+      hourlyPositions[hour] = this.calculateSolarPositionFallback(latitude, longitude, time)
     }
     
     return {
-      sunrise: sunTimes.sunrise,
-      sunset: sunTimes.sunset,
-      solarNoon: sunTimes.solarNoon,
-      hourlyData
+      date: date.toISOString().split('T')[0],
+      sunTimes,
+      hourlyPositions
     }
   }
 }

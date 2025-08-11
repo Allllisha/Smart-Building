@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    image: smartbuildingplanneracr.azurecr.io/smart-building-planner-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      DATABASE_URL: postgresql://dbadmin:SmartBuilding@2025!@smart-building-planner-db.postgres.database.azure.com:5432/smartbuildingplanner?sslmode=require
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      CORS_ORIGIN: https://smart-building-planner-app.azurewebsites.net
+      
+  frontend:
+    image: smartbuildingplanneracr.azurecr.io/smart-building-planner-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: https://smart-building-planner-api.azurewebsites.net
+        VITE_AUTH_ENABLED: 'true'
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY}
+        VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN}
+        VITE_OPENWEATHERMAP_API_KEY: ${VITE_OPENWEATHERMAP_API_KEY}

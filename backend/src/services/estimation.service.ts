@@ -44,9 +44,10 @@ export class EstimationService {
 
     // 構造による補正係数
     const structureCoefficient = {
-      '壁式鉄筋コンクリート造': 1.2,
-      '木造軸組工法': 0.8,
-      '鉄骨造': 1.0,
+      '鉄骨鉄筋コンクリート造': 1.3,
+      '鉄筋コンクリート造': 1.2,
+      '壁式鉄筋コンクリート造': 1.15,
+      '木造': 0.8,
       'その他': 1.0,
     }[project.building_structure] || 1.0
 

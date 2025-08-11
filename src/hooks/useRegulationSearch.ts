@@ -42,17 +42,18 @@ export function useRegulationSearch(
 
   // キャッシュ
   const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 状態の部分更新ヘルパー
-  const updateItemState = useCallback(<K extends keyof RegulationSearchState>(
+  const updateItemState = useCallback(<K extends 'shadowRegulation' | 'zoningInfo' | 'administrativeGuidance'>(
     key: K,
     updates: Partial<RegulationSearchState[K]>
   ) => {
     setState(prev => {
+      const currentItem = prev[key];
       const newState = {
         ...prev,
-        [key]: { ...prev[key], ...updates }
+        [key]: { ...currentItem, ...updates }
       };
       
       // 全体の状態を更新
@@ -108,7 +109,7 @@ export function useRegulationSearch(
     }
 
     // 行政指導情報の復元
-    if (currentProject.siteInfo.administrativeGuidanceDetails?.length > 0) {
+    if (currentProject.siteInfo.administrativeGuidanceDetails && currentProject.siteInfo.administrativeGuidanceDetails.length > 0) {
       updateItemState('administrativeGuidance', {
         data: currentProject.siteInfo.administrativeGuidanceDetails,
         isLoading: false,
@@ -142,7 +143,6 @@ export function useRegulationSearch(
 
   // Web検索を実行
   const performWebSearch = useCallback(async (
-    address: string,
     prefecture: string,
     city: string,
     searchTypes: ('shadow' | 'zoning' | 'administrative')[]
@@ -177,25 +177,25 @@ export function useRegulationSearch(
         return { type, result };
       } catch (error) {
         console.error(`${type}検索エラー:`, error);
-        return { type, result: { success: false, error: error.message } };
+        return { type, result: { success: false, error: error instanceof Error ? error.message : String(error) } };
       }
     });
 
     const results = await Promise.allSettled(searchPromises);
     const searchResult: RegulationSearchResult = {};
 
-    results.forEach(({ status, value }) => {
-      if (status === 'fulfilled' && value.result.success && value.result.data) {
-        console.log(`処理中 ${value.type}:`, value.result.data);
-        switch (value.type) {
+    results.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.result.success && result.value.result.data) {
+        console.log(`処理中 ${result.value.type}:`, result.value.result.data);
+        switch (result.value.type) {
           case 'shadow':
-            searchResult.shadowRegulation = value.result.data.sunlightRegulation;
+            searchResult.shadowRegulation = result.value.result.data.sunlightRegulation;
             break;
           case 'zoning':
-            searchResult.urbanPlanning = value.result.data.urbanPlanning;
+            searchResult.urbanPlanning = result.value.result.data.urbanPlanning;
             break;
           case 'administrative':
-            searchResult.administrativeGuidance = value.result.data.administrativeGuidance;
+            searchResult.administrativeGuidance = result.value.result.data.administrativeGuidance;
             break;
         }
       }
@@ -236,7 +236,7 @@ export function useRegulationSearch(
       const hasSavedData = 
         (searchTypes.includes('shadow') && currentProject.siteInfo.shadowRegulation?.targetArea) ||
         (searchTypes.includes('zoning') && currentProject.siteInfo.zoningType) ||
-        (searchTypes.includes('administrative') && currentProject.siteInfo.administrativeGuidanceDetails?.length > 0);
+        (searchTypes.includes('administrative') && (currentProject.siteInfo.administrativeGuidanceDetails?.length ?? 0) > 0);
       
       if (hasSavedData) {
         console.log('保存されたデータが見つかりました');
@@ -275,7 +275,7 @@ export function useRegulationSearch(
 
     try {
       // Web検索を実行
-      const searchResult = await performWebSearch(trimmedAddress, prefecture, city, searchTypes);
+      const searchResult = await performWebSearch(prefecture, city, searchTypes);
       
       // 結果を適用
       applySearchResult(searchResult, searchTypes);
@@ -288,28 +288,34 @@ export function useRegulationSearch(
         const updates: any = { siteInfo: { ...currentProject.siteInfo } };
         
         // 日影規制情報の保存
-        if (searchTypes.includes('shadow') && searchResult.shadowRegulation) {
-          const shadowData = searchResult.shadowRegulation;
-          if (shadowData.targetArea) {
-            // 測定高さから数値を抽出
-            const measurementHeight = shadowData.measurementHeight ? 
-              parseFloat(shadowData.measurementHeight.match(/(\d+\.?\d*)/)?.[1] || '0') : 0;
-            
-            // 5-10m範囲から数値を抽出
-            const shadowTime5to10m = shadowData.shadowTimeLimit ? 
-              parseFloat(shadowData.shadowTimeLimit.match(/(\d+)/)?.[1] || '0') : 0;
-            
-            // 10m超範囲から数値を抽出
-            const shadowTimeOver10m = shadowData.rangeOver10m ? 
-              parseFloat(shadowData.rangeOver10m.match(/(\d+)/)?.[1] || '0') : 0;
-              
+        if (searchTypes.includes('shadow')) {
+          // 用途地域から日影規制を決定（AI検索結果よりも用途地域を優先）
+          const zoningType = updates.siteInfo.zoningType || currentProject.siteInfo.zoningType || '第一種低層住居専用地域';
+          console.log('🔍 用途地域に基づく日影規制の設定:', zoningType);
+          
+          // 用途地域に基づく日影規制値を設定
+          const shadowRegulationFromZoning = getShadowRegulationFromZoningType(zoningType);
+          
+          // AI検索結果がある場合は一部の情報を使用
+          if (searchResult.shadowRegulation?.targetArea) {
+            const shadowData = searchResult.shadowRegulation;
             updates.siteInfo.shadowRegulation = {
-              targetArea: shadowData.targetArea,
-              targetBuilding: shadowData.targetBuildings || '',
-              measurementHeight: measurementHeight,
-              measurementTime: shadowData.timeRange || shadowData.measurementTime || '',
-              allowedShadowTime5to10m: shadowTime5to10m,
-              allowedShadowTimeOver10m: shadowTimeOver10m
+              targetArea: shadowData.targetArea || zoningType,
+              targetBuilding: shadowRegulationFromZoning.targetBuilding,
+              measurementHeight: shadowRegulationFromZoning.measurementHeight,
+              measurementTime: shadowData.measurementTime || shadowRegulationFromZoning.measurementTime,
+              allowedShadowTime5to10m: shadowRegulationFromZoning.allowedShadowTime5to10m,
+              allowedShadowTimeOver10m: shadowRegulationFromZoning.allowedShadowTimeOver10m
+            };
+          } else {
+            // AI検索結果がない場合は用途地域から完全に生成
+            updates.siteInfo.shadowRegulation = {
+              targetArea: zoningType,
+              targetBuilding: shadowRegulationFromZoning.targetBuilding,
+              measurementHeight: shadowRegulationFromZoning.measurementHeight,
+              measurementTime: shadowRegulationFromZoning.measurementTime,
+              allowedShadowTime5to10m: shadowRegulationFromZoning.allowedShadowTime5to10m,
+              allowedShadowTimeOver10m: shadowRegulationFromZoning.allowedShadowTimeOver10m
             };
           }
         }
@@ -317,31 +323,48 @@ export function useRegulationSearch(
         // 行政指導情報の保存
         if (searchTypes.includes('administrative') && searchResult.administrativeGuidance) {
           updates.siteInfo.administrativeGuidanceDetails = searchResult.administrativeGuidance.map((item: any, index: number) => {
-            if (typeof item === 'string') {
+            // AIから返される新しい構造に対応（日本語キーも含む）
+            if (typeof item === 'object' && item !== null) {
+              // 日本語キーの場合
+              if (item['条例・要綱名'] && item['具体的な内容']) {
+                return {
+                  id: `guidance-${Date.now()}-${index}`,
+                  name: item['条例・要綱名'],
+                  description: item['具体的な内容'],
+                  isRequired: false
+                };
+              }
+              // 英語キーの場合
+              else if (item.name && item.description) {
+                return {
+                  id: `guidance-${Date.now()}-${index}`,
+                  name: item.name,
+                  description: item.description,
+                  isRequired: false
+                };
+              }
+              // その他のオブジェクト構造の場合
+              else {
+                return {
+                  id: `guidance-${Date.now()}-${index}`,
+                  name: String(item.name || item['条例・要綱名'] || item),
+                  description: String(item.description || item['具体的な内容'] || ''),
+                  isRequired: false
+                };
+              }
+            } else if (typeof item === 'string') {
               return {
                 id: `guidance-${Date.now()}-${index}`,
                 name: item,
+                description: '',
                 isRequired: false
               };
             } else {
-              // nameがオブジェクトの場合の処理
-              let name = '';
-              let description = item.description || item.details || '';
-              
-              if (typeof item.name === 'object' && item.name !== null) {
-                // nameオブジェクトから適切なテキストを抽出
-                name = item.name.title || item.name.name || '行政指導項目';
-                if (!description && item.name.description) {
-                  description = item.name.description;
-                }
-              } else {
-                name = String(item.name || item);
-              }
-              
+              // レガシー形式の処理
               return {
                 id: `guidance-${Date.now()}-${index}`,
-                name: name,
-                description: description,
+                name: String(item.name || item['条例・要綱名'] || item),
+                description: String(item.description || item['具体的な内容'] || ''),
                 isRequired: false
               };
             }
@@ -390,7 +413,7 @@ export function useRegulationSearch(
       console.log('日影規制データマッピング前:', result.shadowRegulation);
       
       // sunlightRegulationという名前で来る場合もあるので、それも確認
-      const shadowRegData = result.shadowRegulation.sunlightRegulation || result.shadowRegulation;
+      const shadowRegData = (result.shadowRegulation as any).sunlightRegulation || result.shadowRegulation;
       
       const shadowData = {
         targetArea: shadowRegData.targetArea || '',
@@ -455,31 +478,48 @@ export function useRegulationSearch(
     // 行政指導情報
     if (searchTypes.includes('administrative') && result.administrativeGuidance) {
       const guidanceData = result.administrativeGuidance.map((item, index) => {
-        if (typeof item === 'string') {
+        // AIから返される新しい構造に対応（日本語キーも含む）
+        if (typeof item === 'object' && item !== null) {
+          // 日本語キーの場合
+          if (item['条例・要綱名'] && item['具体的な内容']) {
+            return {
+              id: `guidance-${Date.now()}-${index}`,
+              name: item['条例・要綱名'],
+              description: item['具体的な内容'],
+              isRequired: false
+            };
+          }
+          // 英語キーの場合
+          else if (item.name && item.description) {
+            return {
+              id: `guidance-${Date.now()}-${index}`,
+              name: item.name,
+              description: item.description,
+              isRequired: false
+            };
+          }
+          // その他のオブジェクト構造の場合
+          else {
+            return {
+              id: `guidance-${Date.now()}-${index}`,
+              name: String(item.name || item['条例・要綱名'] || item),
+              description: String(item.description || item['具体的な内容'] || ''),
+              isRequired: false
+            };
+          }
+        } else if (typeof item === 'string') {
           return {
             id: `guidance-${Date.now()}-${index}`,
             name: item,
+            description: '',
             isRequired: false
           };
         } else {
-          // nameがオブジェクトの場合の処理
-          let name = '';
-          let description = item.description || item.details || '';
-          
-          if (typeof item.name === 'object' && item.name !== null) {
-            // nameオブジェクトから適切なテキストを抽出
-            name = item.name.title || item.name.name || '行政指導項目';
-            if (!description && item.name.description) {
-              description = item.name.description;
-            }
-          } else {
-            name = String(item.name || item);
-          }
-          
+          // レガシー形式の処理
           return {
             id: `guidance-${Date.now()}-${index}`,
-            name: name,
-            description: description,
+            name: String(item.name || item),
+            description: String(item.description || ''),
             isRequired: false
           };
         }
@@ -563,4 +603,100 @@ export function useRegulationSearch(
     debouncedSearch,
     updateItemState
   };
+}
+
+/**
+ * 用途地域から日影規制を取得
+ */
+function getShadowRegulationFromZoningType(zoningType: string) {
+  // 用途地域別の日影規制設定
+  const shadowRegulationMapping: { [key: string]: any } = {
+    '第一種低層住居専用地域': {
+      targetBuilding: '軒高7m超または3階建以上の建築物',
+      measurementHeight: 1.5,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 3,
+      allowedShadowTimeOver10m: 2
+    },
+    '第二種低層住居専用地域': {
+      targetBuilding: '軒高7m超または3階建以上の建築物',
+      measurementHeight: 1.5,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '第一種中高層住居専用地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '第二種中高層住居専用地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '第一種住居地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '第二種住居地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '準住居地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '近隣商業地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',  
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '商業地域': {
+      targetBuilding: '日影規制対象外',
+      measurementHeight: 0,
+      measurementTime: '規制対象外',
+      allowedShadowTime5to10m: 0,
+      allowedShadowTimeOver10m: 0
+    },
+    '準工業地域': {
+      targetBuilding: '高さ10m超の建築物',
+      measurementHeight: 4,
+      measurementTime: '冬至日の午前8時から午後4時',
+      allowedShadowTime5to10m: 4,
+      allowedShadowTimeOver10m: 2.5
+    },
+    '工業地域': {
+      targetBuilding: '日影規制対象外',
+      measurementHeight: 0,
+      measurementTime: '規制対象外',
+      allowedShadowTime5to10m: 0,
+      allowedShadowTimeOver10m: 0
+    },
+    '工業専用地域': {
+      targetBuilding: '日影規制対象外',
+      measurementHeight: 0,
+      measurementTime: '規制対象外',
+      allowedShadowTime5to10m: 0,
+      allowedShadowTimeOver10m: 0
+    }
+  };
+
+  // デフォルトは第一種低層住居専用地域
+  return shadowRegulationMapping[zoningType] || shadowRegulationMapping['第一種低層住居専用地域'];
 }

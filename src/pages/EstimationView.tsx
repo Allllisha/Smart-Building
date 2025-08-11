@@ -9,24 +9,17 @@ import {
   Button,
   Divider,
   Chip,
-  Card,
-  CardContent,
   LinearProgress,
-  Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Stack,
-  IconButton,
-  Tooltip,
   useTheme,
   alpha,
 } from '@mui/material'
 import {
   ExpandMore as ExpandMoreIcon,
   Architecture as ArchitectureIcon,
-  WbSunny as SunIcon,
-  TrendingUp as TrendingUpIcon,
   Foundation as FoundationIcon,
   Home as HomeIcon,
   Palette as PaletteIcon,
@@ -36,19 +29,16 @@ import {
   Construction as ConstructionIcon,
   Engineering as EngineeringIcon,
   AttachMoney as MoneyIcon,
-  Info as InfoIcon,
   AutoGraph as AutoGraphIcon,
   CloudDownload as DownloadIcon,
   Refresh as RefreshIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   DataUsage as DataUsageIcon,
   Calculate as CalculateIcon,
-  PieChart as PieChartIcon,
-  Timeline as TimelineIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material'
 import { useProjectStore } from '@/store/projectStore'
-import { EstimationResult, CostBreakdown } from '@/types/project'
+import { EstimationResult, CostBreakdown, Project } from '@/types/project'
 import UnitPriceEditor, { UnitPrices, defaultUnitPrices } from '@/components/UnitPriceEditor'
 import { generateAIAnalysis } from '@/utils/aiAnalysisHelper'
 import ReactMarkdown from 'react-markdown'
@@ -61,7 +51,7 @@ export default function EstimationView() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [estimation, setEstimation] = useState<EstimationResult | null>(null)
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({})
-  const [showCalculationDetails, setShowCalculationDetails] = useState(false)
+  // const [showCalculationDetails, setShowCalculationDetails] = useState(false)
   const [unitPrices, setUnitPrices] = useState<UnitPrices>(defaultUnitPrices)
   const [showUnitPriceEditor, setShowUnitPriceEditor] = useState(false)
 
@@ -116,13 +106,20 @@ export default function EstimationView() {
     
     try {
       // Call the AI-powered estimation API
-      const response = await fetch(`/api/estimation/${id}/calculate`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+      console.log('API URL:', apiUrl)
+      console.log('Token:', localStorage.getItem('token'))
+      
+      const response = await fetch(`${apiUrl}/api/estimation/${id}/calculate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       })
+      
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
 
       if (!response.ok) {
         throw new Error('見積もり計算に失敗しました')
@@ -148,15 +145,15 @@ export default function EstimationView() {
       console.error('Estimation calculation error:', error)
       
       // Fallback to client-side calculation if API fails
-      const { buildingInfo, siteInfo } = currentProject
-      const totalFloorArea = buildingInfo.totalFloorArea || buildingInfo.buildingArea * buildingInfo.floors
+      const { buildingInfo } = currentProject
+      const totalFloorArea = buildingInfo.totalFloorArea || ((buildingInfo.buildingArea || 0) * (buildingInfo.floors || 0))
       
       // 構造による補正係数
       const structureCoefficient = prices.structureCoefficients[buildingInfo.structure as keyof typeof prices.structureCoefficients] || 1.0
 
       // コスト内訳計算
       const breakdown: CostBreakdown = {
-        foundation: Math.round(buildingInfo.buildingArea * prices.foundation * structureCoefficient),
+        foundation: Math.round((buildingInfo.buildingArea || 0) * prices.foundation * structureCoefficient),
         structure: Math.round(totalFloorArea * prices.structure * structureCoefficient),
         exterior: Math.round(totalFloorArea * prices.exterior),
         interior: Math.round(totalFloorArea * prices.interior),
@@ -171,9 +168,9 @@ export default function EstimationView() {
       const totalCost = Object.values(breakdown).reduce((sum, cost) => sum + cost, 0)
 
       // 環境性能による運用コスト計算
-      const annualEnergyCost = Math.round(totalFloorArea * prices.operationalCost.annualEnergyCostPerSqm)
-      const heatingCost = Math.round(annualEnergyCost * prices.operationalCost.heatingCostRatio)
-      const coolingCost = Math.round(annualEnergyCost * prices.operationalCost.coolingCostRatio)
+      // const annualEnergyCost = Math.round(totalFloorArea * prices.operationalCost.annualEnergyCostPerSqm)
+      // const heatingCost = Math.round(annualEnergyCost * prices.operationalCost.heatingCostRatio)
+      // const coolingCost = Math.round(annualEnergyCost * prices.operationalCost.coolingCostRatio)
 
       const result: EstimationResult = {
         totalCost,
@@ -245,9 +242,9 @@ export default function EstimationView() {
 
   const getCalculationDetails = (itemKey: string, value: number) => {
     const totalFloorArea = currentProject.buildingInfo.totalFloorArea || 
-                          currentProject.buildingInfo.buildingArea * currentProject.buildingInfo.floors
-    const buildingArea = currentProject.buildingInfo.buildingArea
-    const floors = currentProject.buildingInfo.floors
+                          ((currentProject.buildingInfo.buildingArea || 0) * (currentProject.buildingInfo.floors || 0))
+    const buildingArea = currentProject.buildingInfo.buildingArea || 0
+    const floors = currentProject.buildingInfo.floors || 0
     const structure = currentProject.buildingInfo.structure
     const structureCoefficient = unitPrices.structureCoefficients[structure as keyof typeof unitPrices.structureCoefficients] || 1.0
 
@@ -549,26 +546,26 @@ export default function EstimationView() {
               <Stack direction="row" spacing={3} sx={{ opacity: 1 }}>
                 <Box>
                   <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>構造</Typography>
-                  <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                  <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                     {currentProject.buildingInfo.structure}
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>規模</Typography>
-                  <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                  <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                     {currentProject.buildingInfo.floors}階建 / {currentProject.buildingInfo.units || 0}戸
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>所在地</Typography>
-                  <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                  <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                     {currentProject.location.address}
                   </Typography>  
                 </Box>
                 {currentProject.schedule?.startDate && (
                   <Box>
                     <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>着工予定</Typography>
-                    <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                    <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                       {new Date(currentProject.schedule.startDate).toLocaleDateString('ja-JP')}
                     </Typography>
                   </Box>
@@ -576,7 +573,7 @@ export default function EstimationView() {
                 {currentProject.schedule?.completionDate && (
                   <Box>
                     <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>竣工予定</Typography>
-                    <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                    <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                       {new Date(currentProject.schedule.completionDate).toLocaleDateString('ja-JP')}
                     </Typography>
                   </Box>
@@ -584,7 +581,7 @@ export default function EstimationView() {
                 {currentProject.schedule?.duration && (
                   <Box>
                     <Typography variant="caption" display="block" sx={{ color: 'rgba(255,255,255,0.7)' }}>工期</Typography>
-                    <Typography variant="body2" fontWeight={500} sx={{ color: 'white' }}>
+                    <Typography variant="body2" fontWeight="500" sx={{ color: 'white' }}>
                       {currentProject.schedule.duration}ヶ月
                     </Typography>
                   </Box>
@@ -666,7 +663,7 @@ export default function EstimationView() {
 
       <Grid container spacing={4}>
         {/* 総額表示 - 建築デザイン事務所風 */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper 
             elevation={0}
             sx={{ 
@@ -721,7 +718,7 @@ export default function EstimationView() {
                   pt: 3 
                 }}>
                   <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Box sx={{ 
                         backgroundColor: 'rgba(255,255,255,0.05)', 
                         borderRadius: 2, 
@@ -746,11 +743,11 @@ export default function EstimationView() {
                           letterSpacing: '-0.01em',
                           fontSize: '1.75rem'
                         }}>
-                          ¥{formatCurrency(Math.round(estimation.totalCost / (currentProject.buildingInfo.totalFloorArea || currentProject.buildingInfo.buildingArea * currentProject.buildingInfo.floors)))}/㎡
+                          ¥{formatCurrency(Math.round(estimation.totalCost / (currentProject.buildingInfo.totalFloorArea || (currentProject.buildingInfo.buildingArea || 0) * (currentProject.buildingInfo.floors || 1))))}/㎡
                         </Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Box sx={{ 
                         backgroundColor: 'rgba(255,255,255,0.05)', 
                         borderRadius: 2, 
@@ -774,7 +771,7 @@ export default function EstimationView() {
                           color: 'white',
                           fontSize: '1.75rem'
                         }}>
-                          ¥{formatCurrency(Math.round(estimation.totalCost / ((currentProject.buildingInfo.totalFloorArea || currentProject.buildingInfo.buildingArea * currentProject.buildingInfo.floors) * 0.3025)))}/坪
+                          ¥{formatCurrency(Math.round(estimation.totalCost / ((currentProject.buildingInfo.totalFloorArea || (currentProject.buildingInfo.buildingArea || 0) * (currentProject.buildingInfo.floors || 1)) * 0.3025)))}/坪
                         </Typography>
                       </Box>
                     </Grid>
@@ -801,7 +798,7 @@ export default function EstimationView() {
                     </Typography>
                     <Grid container spacing={3}>
                       {estimation.schedule?.startDate && (
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Box sx={{ 
                             backgroundColor: 'rgba(255,255,255,0.05)', 
                             borderRadius: 2, 
@@ -832,7 +829,7 @@ export default function EstimationView() {
                         </Grid>
                       )}
                       {estimation.schedule?.completionDate && (
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Box sx={{ 
                             backgroundColor: 'rgba(255,255,255,0.05)', 
                             borderRadius: 2, 
@@ -863,7 +860,7 @@ export default function EstimationView() {
                         </Grid>
                       )}
                       {estimation.schedule?.duration && (
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Box sx={{ 
                             backgroundColor: 'rgba(255,255,255,0.05)', 
                             borderRadius: 2, 
@@ -904,7 +901,7 @@ export default function EstimationView() {
 
 
         {/* 工事内訳 - 洗練されたデザイン */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper 
             elevation={0} 
             sx={{ 
@@ -963,7 +960,7 @@ export default function EstimationView() {
                   const isHighCost = percentage > 15
                   
                   return (
-                    <Grid item xs={12} sm={6} md={4} key={key}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                       <Box 
                         sx={{ 
                           p: 3,
@@ -1100,7 +1097,7 @@ export default function EstimationView() {
                                       </Typography>
                                       <Grid container spacing={1}>
                                         {Object.entries(details.inputData).map(([dataKey, dataValue]) => (
-                                          <Grid item xs={6} key={dataKey}>
+                                          <Grid size={{ xs: 6 }} key={dataKey}>
                                             <Box sx={{ 
                                               p: 1, 
                                               backgroundColor: 'white',
@@ -1110,8 +1107,8 @@ export default function EstimationView() {
                                               <Typography variant="caption" color="text.secondary">
                                                 {dataKey}
                                               </Typography>
-                                              <Typography variant="body2" fontWeight={500}>
-                                                {dataValue}
+                                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                {String(dataValue)}
                                               </Typography>
                                             </Box>
                                           </Grid>
@@ -1138,7 +1135,7 @@ export default function EstimationView() {
                                           >
                                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                               <Box sx={{ flex: 1 }}>
-                                                <Typography variant="body2" fontWeight={500}>
+                                                <Typography variant="body2" fontWeight="500">
                                                   {component.name}
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
@@ -1186,7 +1183,7 @@ export default function EstimationView() {
         </Grid>
 
         {/* AI分析 */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Accordion defaultExpanded>
             <AccordionSummary 
               expandIcon={<ExpandMoreIcon />}

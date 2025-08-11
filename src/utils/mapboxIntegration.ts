@@ -98,14 +98,14 @@ export function createThreeJSLayer(
     type: 'custom',
     renderingMode: '3d',
     
-    onAdd: function(map: mapboxgl.Map, gl: WebGLRenderingContext) {
+    onAdd: function(_mapInstance: mapboxgl.Map, _glContext: WebGLRenderingContext) {
       // Configure renderer for Mapbox
       renderer.autoClear = false
       renderer.shadowMap.enabled = true
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
     },
 
-    render: function(gl: WebGLRenderingContext, matrix: number[]) {
+    render: function(_glContext: WebGLRenderingContext, matrix: number[]) {
       // Update camera with Mapbox matrix
       camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix)
       
@@ -132,8 +132,10 @@ export function createThreeJSLayer(
       // Render Three.js scene
       renderer.render(scene, camera)
       
-      // Trigger Mapbox repaint for animation
-      map.triggerRepaint()
+      // Trigger Mapbox repaint for animation if map is available
+      if ((window as any).mapboxInstance) {
+        (window as any).mapboxInstance.triggerRepaint()
+      }
     }
   }
 }
@@ -143,7 +145,7 @@ export function createThreeJSLayer(
  */
 export function calculateBuildingPosition(
   sitePolygon: [number, number][],
-  buildingDimensions: { width: number; depth: number }
+  _buildingDimensions: { width: number; depth: number }
 ): { lng: number; lat: number; rotation: number } {
   if (sitePolygon.length < 3) {
     // If no polygon, use first point
@@ -187,9 +189,7 @@ export function createShadowProjection(
   building: THREE.Object3D,
   sunDirection: THREE.Vector3,
   groundLevel: number = 0
-): THREE.Geometry {
-  const shadowGeometry = new THREE.Geometry()
-  
+): THREE.BufferGeometry {
   // Get building bounding box
   const bbox = new THREE.Box3().setFromObject(building)
   const corners = [
@@ -200,19 +200,30 @@ export function createShadowProjection(
   ]
 
   // Project corners onto ground plane
+  const projectedCorners: THREE.Vector3[] = []
   corners.forEach(corner => {
     const t = (groundLevel - corner.y) / sunDirection.y
     const projectedPoint = corner.clone().add(sunDirection.clone().multiplyScalar(t))
-    shadowGeometry.vertices.push(projectedPoint)
+    projectedCorners.push(projectedPoint)
   })
 
-  // Create shadow faces
-  shadowGeometry.faces.push(
-    new THREE.Face3(0, 1, 2),
-    new THREE.Face3(0, 2, 3)
-  )
+  // Create vertices array
+  const vertices = new Float32Array([
+    // First triangle
+    projectedCorners[0].x, projectedCorners[0].y, projectedCorners[0].z,
+    projectedCorners[1].x, projectedCorners[1].y, projectedCorners[1].z,
+    projectedCorners[2].x, projectedCorners[2].y, projectedCorners[2].z,
+    // Second triangle
+    projectedCorners[0].x, projectedCorners[0].y, projectedCorners[0].z,
+    projectedCorners[2].x, projectedCorners[2].y, projectedCorners[2].z,
+    projectedCorners[3].x, projectedCorners[3].y, projectedCorners[3].z,
+  ])
 
-  return shadowGeometry
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+  geometry.computeVertexNormals()
+
+  return geometry
 }
 
 /**

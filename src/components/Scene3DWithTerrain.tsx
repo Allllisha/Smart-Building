@@ -85,7 +85,7 @@ export default function Scene3DWithTerrain({
   // 建物高さ変更時の更新
   useEffect(() => {
     if (isTerrainMode && mapInitialized) {
-      mapbox3dService.updateBuildingHeight(project.buildingInfo.maxHeight)
+      mapbox3dService.updateBuildingHeight(project.buildingInfo.maxHeight || 10000)
     }
   }, [project.buildingInfo.maxHeight, isTerrainMode, mapInitialized])
 

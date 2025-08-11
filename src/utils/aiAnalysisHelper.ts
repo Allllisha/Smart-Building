@@ -39,7 +39,7 @@ export function generateCalculationData(
   prices: UnitPrices
 ): CalculationData {
   const totalFloorArea = project.buildingInfo.totalFloorArea || 
-                        project.buildingInfo.buildingArea * project.buildingInfo.floors
+                        (project.buildingInfo.buildingArea || 0) * (project.buildingInfo.floors || 1)
   const structureCoefficient = prices.structureCoefficients[
     project.buildingInfo.structure as keyof typeof prices.structureCoefficients
   ] || 1.0
@@ -60,7 +60,7 @@ export function generateCalculationData(
   const annualEnergyCost = totalFloorArea * prices.operationalCost.annualEnergyCostPerSqm
   
   // 太陽光発電効果計算
-  const roofArea = project.buildingInfo.buildingArea * 0.6 // 屋根面積の60%を使用可能と仮定
+  const roofArea = (project.buildingInfo.buildingArea || 0) * 0.6 // 屋根面積の60%を使用可能と仮定
   const solarPowerSavings = Math.round(roofArea * prices.operationalCost.solarPowerGenerationPerSqm)
   
   // 断熱仕様向上効果計算
@@ -69,15 +69,15 @@ export function generateCalculationData(
   const annualHvacSavings = Math.round(annualEnergyCost * (currentHeatingCostRatio + currentCoolingCostRatio) * hvacSavingsRatio)
   
   // 高さ制限による影響計算
-  const maxHeightMm = project.buildingInfo.maxHeight
+  const maxHeightMm = project.buildingInfo.maxHeight || 0
   const potentialExtraFloors = Math.max(0, Math.floor((maxHeightMm - 15000) / 3000)) // 15mを超えた分で追加可能階数を計算
-  const potentialAreaIncrease = potentialExtraFloors * project.buildingInfo.buildingArea
+  const potentialAreaIncrease = potentialExtraFloors * (project.buildingInfo.buildingArea || 0)
   const potentialCostIncrease = Math.round(potentialAreaIncrease * prices.structure * structureCoefficient / 10000)
   
   return {
     totalFloorArea,
     structureCoefficient,
-    structureName: project.buildingInfo.structure,
+    structureName: project.buildingInfo.structure || '',
     structureCostDifference,
     structureCostPercentage,
     

@@ -1,5 +1,5 @@
 import { Project } from '@/types/project'
-import * as THREE from 'three'
+// import * as THREE from 'three'
 
 export interface DetailedBuildingGeometry {
   // 基本形状
@@ -101,36 +101,37 @@ class DetailedShadowCalculationService {
   generateDetailedBuildingGeometry(project: Project): DetailedBuildingGeometry {
     console.log('🏗️ 入力情報から詳細建物形状を生成開始')
     
-    const { buildingInfo, siteInfo, areaInfo, parkingInfo } = project
+    const { buildingInfo, siteInfo } = project
+    // areaInfo and parkingInfo not available in current Project type
     
     // 基本寸法の計算
-    const baseArea = buildingInfo.buildingArea // ㎡
-    const totalFloors = buildingInfo.floors
-    const totalHeight = buildingInfo.maxHeight / 1000 // mm to m
+    const baseArea = buildingInfo.buildingArea || 100 // ㎡
+    const totalFloors = buildingInfo.floors || 1
+    const totalHeight = (buildingInfo.maxHeight || 3000) / 1000 // mm to m
     const floorHeight = totalHeight / totalFloors
     
     // 建物形状の基本推定（用途・構造による補正）
-    const aspectRatio = this.calculateOptimalAspectRatio(buildingInfo.usage, buildingInfo.structure)
+    const aspectRatio = this.calculateOptimalAspectRatio(buildingInfo.usage || 'residential', buildingInfo.structure || 'RC')
     const baseWidth = Math.sqrt(baseArea * aspectRatio)
     const baseDepth = baseArea / baseWidth
     
     // 基本フットプリントの生成
-    const baseFootprint = this.generateBaseFootprint(baseWidth, baseDepth, buildingInfo.usage)
+    const baseFootprint = this.generateBaseFootprint(baseWidth, baseDepth, buildingInfo.usage || 'residential')
     
     // 階層別形状の生成
     const floorPlans = this.generateFloorPlans(
-      totalFloors, floorHeight, baseFootprint, buildingInfo, areaInfo
+      totalFloors, floorHeight, baseFootprint, buildingInfo
     )
     
     // セットバックの推定
-    const setbacks = this.estimateSetbacks(totalFloors, totalHeight, buildingInfo.usage, siteInfo)
+    const setbacks = this.estimateSetbacks(totalFloors, totalHeight, buildingInfo.usage || 'residential', siteInfo)
     
     // バルコニーの推定
-    const balconies = this.estimateBalconies(totalFloors, buildingInfo.usage, parkingInfo)
+    const balconies = this.estimateBalconies(totalFloors, buildingInfo.usage || 'residential', null)
     
     // 張り出し・凹みの推定
-    const projections = this.estimateProjections(buildingInfo.usage, buildingInfo.structure)
-    const recesses = this.estimateRecesses(buildingInfo.usage)
+    const projections = this.estimateProjections(buildingInfo.usage || 'residential', buildingInfo.structure || 'RC')
+    const recesses = this.estimateRecesses(buildingInfo.usage || 'residential')
     
     return {
       baseFootprint,
@@ -247,8 +248,7 @@ class DetailedShadowCalculationService {
     totalFloors: number, 
     floorHeight: number, 
     baseFootprint: { x: number, y: number }[],
-    buildingInfo: any,
-    areaInfo: any
+    buildingInfo: any
   ): FloorPlan[] {
     const floorPlans: FloorPlan[] = []
     
@@ -285,7 +285,7 @@ class DetailedShadowCalculationService {
   /**
    * セットバックの推定
    */
-  private estimateSetbacks(totalFloors: number, totalHeight: number, usage: string, siteInfo: any): Setback[] {
+  private estimateSetbacks(totalFloors: number, totalHeight: number, usage: string, _siteInfo: any): Setback[] {
     const setbacks: Setback[] = []
     
     // 高さ制限によるセットバック
@@ -314,7 +314,7 @@ class DetailedShadowCalculationService {
   /**
    * バルコニーの推定
    */
-  private estimateBalconies(totalFloors: number, usage: string, parkingInfo: any): Balcony[] {
+  private estimateBalconies(totalFloors: number, usage: string, _parkingInfo: any): Balcony[] {
     const balconies: Balcony[] = []
     
     if (usage === '共同住宅' || usage === '専用住宅') {
@@ -337,7 +337,7 @@ class DetailedShadowCalculationService {
   /**
    * 張り出し部分の推定
    */
-  private estimateProjections(usage: string, structure: string): Projection[] {
+  private estimateProjections(usage: string, _structure: string): Projection[] {
     const projections: Projection[] = []
     
     if (usage === 'オフィス') {
@@ -771,7 +771,7 @@ class DetailedShadowCalculationService {
   /**
    * 形状解析
    */
-  private analyzeGeometry(buildingGeometry: DetailedBuildingGeometry, checkPoints: PreciseShadowPoint[]): any {
+  private analyzeGeometry(buildingGeometry: DetailedBuildingGeometry, _checkPoints: PreciseShadowPoint[]): any {
     const effectiveBuildingFootprint = this.calculatePolygonArea(buildingGeometry.baseFootprint)
     
     let shadowCastingVolume = 0
@@ -781,7 +781,7 @@ class DetailedShadowCalculationService {
     
     // 最も影響する階の特定
     const criticalFloors: number[] = []
-    const floorImpact = buildingGeometry.floorPlans.map((floor, index) => {
+    const floorImpact = buildingGeometry.floorPlans.map((floor, _index) => {
       const floorArea = this.calculatePolygonArea(floor.footprint)
       const heightWeight = floor.level * floor.height
       return { floor: floor.level, impact: floorArea * heightWeight }

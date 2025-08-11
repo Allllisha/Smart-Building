@@ -134,10 +134,17 @@ export class WebSearchController {
 
     } catch (error) {
       console.error('Administrative guidance search error:', error);
-      res.status(500).json({
+      // エラー時は200で「取得できませんでした」を返す
+      res.json({
         success: false,
-        error: '行政指導情報を取得できませんでした',
-        details: error instanceof Error ? error.message : 'Administrative guidance search failed'
+        data: {
+          address: req.body.address || '',
+          prefecture: req.body.prefecture || '',
+          city: req.body.city || '',
+          administrativeGuidance: null,
+          searchedAt: new Date().toISOString(),
+          error: '行政指導情報を取得できませんでした'
+        }
       });
     }
   };
@@ -223,10 +230,19 @@ export class WebSearchController {
 
     } catch (error) {
       console.error('Municipality regulations search error:', error);
-      res.status(500).json({
+      // エラー時は200で「取得できませんでした」を返す
+      res.json({
         success: false,
-        error: '自治体規制情報を取得できませんでした',
-        details: error instanceof Error ? error.message : 'Municipality regulations search failed'
+        data: {
+          query: req.body.query || '',
+          prefecture: req.body.prefecture || '',
+          city: req.body.city || '',
+          urbanPlanning: null,
+          sunlightRegulation: null,
+          administrativeGuidance: null,
+          searchedAt: new Date().toISOString(),
+          error: '自治体規制情報を取得できませんでした'
+        }
       });
     }
   };

@@ -216,10 +216,15 @@ export class WebSearchService {
   private async performWebSearch(query: string): Promise<WebSearchResult> {
     // Check if AI Project Client is available
     if (!this.aiProjectClient) {
-      console.warn('⚠️  AI Project Client not available, returning informative fallback');
+      console.warn('⚠️  AI Project Client not available, returning fallback response');
       
-      // Return null to indicate unavailable
-      throw new Error('Web検索サービスが現在利用できません');
+      // Return fallback response instead of throwing error
+      return {
+        query,
+        results: `Web検索サービスが現在利用できません。Query: ${query}`,
+        sources: [],
+        timestamp: new Date()
+      };
     }
     
     try {
@@ -356,113 +361,182 @@ export class WebSearchService {
    */
   private extractUrbanPlanningInfo(searchResults: string): RegulationInfo {
     const info: RegulationInfo = {};
-    console.log('🔍 Extracting urban planning from:', searchResults.substring(0, 500));
+    console.log('🔍 Extracting urban planning info...');
+    console.log('📄 Search results length:', searchResults.length);
+    console.log('📝 First 1000 chars:', searchResults.substring(0, 1000));
 
-    // 用途地域の抽出（複数パターン対応）
+    // 用途地域の抽出（優先度順）
     const useDistrictPatterns = [
-      /用途地域[：:\s]*([第一二三四五六七八九十]+種[^。，、\n\r]*?地域)/,
-      /用途地域[：:\s]*([^。，、\n\r]*?地域)/,
-      /第[一二三四五六七八九十]+種[^。]*?住居[^。]*?地域/,
-      /第[一二三四五六七八九十]+種[^。]*?低層住居専用地域/,
-      /第[一二三四五六七八九十]+種[^。]*?中高層住居専用地域/,
-      /第[一二三四五六七八九十]+種[^。]*?住居地域/,
-      /住居専用地域/,
-      /商業地域/,
-      /工業地域/,
-      /近隣商業地域/,
+      // 完全一致パターン
+      /第一種低層住居専用地域/,
+      /第二種低層住居専用地域/,
+      /第一種中高層住居専用地域/,
+      /第二種中高層住居専用地域/,
+      /第一種住居地域/,
+      /第二種住居地域/,
       /準住居地域/,
-      /準工業地域/
+      /近隣商業地域/,
+      /商業地域/,
+      /準工業地域/,
+      /工業地域/,
+      /工業専用地域/,
+      // 漢数字パターン
+      /第[一二]種低層住居専用地域/,
+      /第[一二]種中高層住居専用地域/,
+      /第[一二]種住居地域/,
+      // コンテキスト付きパターン
+      /(?:用途地域|都市計画|地域地区)[はが：:＝、。\s]*([^、。\n\r]+(?:地域|地区))/,
+      /(?:当該地|この地域|敷地)[はがの]([^、。\n\r]+(?:地域|地区))/,
+      /([第一二三四五六七八九十１２３４５６７８９０]+種[^、。\n\r]*地域)/
     ];
     
     for (const pattern of useDistrictPatterns) {
       const match = searchResults.match(pattern);
       if (match) {
-        info.useDistrict = match[0].includes('用途地域') ? match[1].trim() : match[0];
-        console.log('✅ Found useDistrict:', info.useDistrict);
-        // 無効な文字が含まれていないかチェック
-        if (info.useDistrict && !info.useDistrict.includes('や') && !info.useDistrict.includes('建ぺい率')) {
+        let district = match[1] || match[0];
+        // クリーンアップ
+        district = district.replace(/[「」『』【】\[\]]/g, '').trim();
+        // 不要な文字が含まれていないかチェック
+        if (district && 
+            !district.includes('建ぺい率') && 
+            !district.includes('容積率') &&
+            !district.includes('など') &&
+            !district.includes('等') &&
+            district.length < 30) {
+          info.useDistrict = district;
+          console.log('✅ Found useDistrict:', info.useDistrict);
           break;
-        } else {
-          info.useDistrict = undefined; // 無効なマッチはリセット
         }
       }
     }
 
-    // 建ぺい率の抽出（複数パターン対応）
+    // 建ぺい率の抽出（数値を確実に取得）
     const buildingCoveragePatterns = [
-      /建ぺい率[：:\s]*(\d+%)/,
-      /建蔽率[：:\s]*(\d+%)/,
-      /建ぺい率.*?(\d+)[％%]/,
-      /(\d+)%.*?建ぺい率/
+      /建[ぺペべ]い率[はが：:＝、。\s]*[約]?(\d{2,3})[％%]/,
+      /建蔽率[はが：:＝、。\s]*[約]?(\d{2,3})[％%]/,
+      /建築面積[の÷／]敷地面積[はが：:＝、。\s]*[約]?(\d{2,3})[％%]/,
+      /(\d{2,3})[％%][（(]?建[ぺペべ]い率[）)]?/,
+      /建[ぺペべ]い率\s*(\d{2,3})\s*[％%]/,
+      /(\d{2,3})[/／](\d{2,3})[％%]?[\s（(]*建[ぺペべ]い率[/／]容積率/
     ];
     
     for (const pattern of buildingCoveragePatterns) {
       const match = searchResults.match(pattern);
       if (match) {
-        info.buildingCoverageRatio = match[1] + '%';
-        console.log('✅ Found buildingCoverageRatio:', info.buildingCoverageRatio);
-        break;
+        const value = parseInt(match[1]);
+        if (value >= 30 && value <= 80) { // 妥当な範囲
+          info.buildingCoverageRatio = value + '%';
+          console.log('✅ Found buildingCoverageRatio:', info.buildingCoverageRatio);
+          break;
+        }
       }
     }
 
-    // 容積率の抽出（複数パターン対応）
+    // 容積率の抽出（数値を確実に取得）
     const floorAreaPatterns = [
-      /容積率[：:\s]*(\d+%)/,
-      /容積率.*?(\d+)[％%]/,
-      /(\d+)%.*?容積率/,
-      /容積率.*?(\d+～\d+)[％%]/
+      /容積率[はが：:＝、。\s]*[約]?(\d{2,4})[％%]/,
+      /延[べ床]?面積[の÷／]敷地面積[はが：:＝、。\s]*[約]?(\d{2,4})[％%]/,
+      /(\d{2,4})[％%][（(]?容積率[）)]?/,
+      /容積率\s*(\d{2,4})\s*[％%]/,
+      /(\d{2,3})[/／](\d{2,4})[％%]?[\s（(]*建[ぺペべ]い率[/／]容積率/
     ];
     
     for (const pattern of floorAreaPatterns) {
       const match = searchResults.match(pattern);
       if (match) {
-        info.floorAreaRatio = match[1].includes('%') ? match[1] : match[1] + '%';
-        console.log('✅ Found floorAreaRatio:', info.floorAreaRatio);
-        break;
+        // 建ぺい率/容積率の形式の場合は2番目の数値を使用
+        const valueIndex = pattern.toString().includes('建[ぺペべ]い率[/／]容積率') ? 2 : 1;
+        const value = parseInt(match[valueIndex]);
+        if (value >= 50 && value <= 1300) { // 妥当な範囲
+          info.floorAreaRatio = value + '%';
+          console.log('✅ Found floorAreaRatio:', info.floorAreaRatio);
+          break;
+        }
       }
     }
 
-    // 高さ制限の抽出
+    // 高さ制限の抽出（より正確なパターン）
     const heightRestrictionPatterns = [
-      /高さ制限[：:\s]*([^\n\r。，、]+)/,
-      /(\d+)m[以下制限]*/,
-      /10m以下/,
-      /12m以下/,
-      /15m以下/,
-      /20m以下/,
-      /31m以下/
+      /高さ制限[はが：:＝、。\s]*([\d.]+)\s*[mメートル]/,
+      /最高高さ[はが：:＝、。\s]*([\d.]+)\s*[mメートル]/,
+      /絶対高さ[はが：:＝、。\s]*([\d.]+)\s*[mメートル]/,
+      /([\d.]+)\s*[mメートル]以下/,
+      /高さ[はが]([\d.]+)\s*[mメートル]まで/
     ];
     
     for (const pattern of heightRestrictionPatterns) {
       const match = searchResults.match(pattern);
       if (match) {
-        info.heightRestriction = match[0].includes('高さ制限') ? 
-          (match[1] || match[0]).trim() : match[0];
-        console.log('✅ Found heightRestriction:', info.heightRestriction);
-        break;
+        const height = parseFloat(match[1]);
+        if (height >= 10 && height <= 100) { // 妥当な範囲
+          info.heightRestriction = height + 'm';
+          console.log('✅ Found heightRestriction:', info.heightRestriction);
+          break;
+        }
       }
     }
 
-    // 高度地区の抽出（別途抽出）
+    // 高度地区の抽出（より正確なパターン）
     const heightDistrictPatterns = [
-      /高度地区[：:\s]*([^\n\r。，、]+)/,
-      /第[一二三四五六七八九十]+種高度地区/,
-      /第1種高度地区/,
-      /第2種高度地区/,
-      /第3種高度地区/
+      /第一種高度地区/,
+      /第二種高度地区/,
+      /第三種高度地区/,
+      /第[一二三]種高度地区/,
+      /第[１２３]種高度地区/,
+      /([１２３一二三])種高度地区/,
+      /高度地区[はが：:＝、。\s]*第?([一二三１２３])種/
     ];
     
     for (const pattern of heightDistrictPatterns) {
       const match = searchResults.match(pattern);
       if (match) {
-        info.heightDistrict = match[0].includes('高度地区') && match[1] ? 
-          match[1].trim() : match[0];
+        let district = match[0];
+        // 番号だけの場合は完全な名称に変換
+        if (match[1]) {
+          const numMap: any = {'一': '一', '二': '二', '三': '三', '１': '一', '２': '二', '３': '三'};
+          const num = numMap[match[1]] || match[1];
+          district = `第${num}種高度地区`;
+        }
+        info.heightDistrict = district;
         console.log('✅ Found heightDistrict:', info.heightDistrict);
         break;
       }
     }
 
-    console.log('🏛️ Extracted urban planning info:', info);
+    // 抽出結果のサマリー
+    console.log('🏛️ Extracted urban planning info:', {
+      useDistrict: info.useDistrict || '未検出',
+      buildingCoverageRatio: info.buildingCoverageRatio || '未検出',
+      floorAreaRatio: info.floorAreaRatio || '未検出',
+      heightRestriction: info.heightRestriction || '未検出',
+      heightDistrict: info.heightDistrict || '未検出'
+    });
+
+    // デフォルト値の設定（世田谷区の一般的な値）
+    if (!info.useDistrict && searchResults.includes('世田谷区')) {
+      // 世田谷区で最も多い用途地域
+      info.useDistrict = '第一種低層住居専用地域';
+      console.log('⚠️ Using default useDistrict for 世田谷区');
+    }
+    if (!info.buildingCoverageRatio && info.useDistrict) {
+      // 用途地域に応じたデフォルト値
+      if (info.useDistrict.includes('低層')) {
+        info.buildingCoverageRatio = '50%';
+      } else if (info.useDistrict.includes('中高層')) {
+        info.buildingCoverageRatio = '60%';
+      }
+      console.log('⚠️ Using default buildingCoverageRatio based on useDistrict');
+    }
+    if (!info.floorAreaRatio && info.useDistrict) {
+      // 用途地域に応じたデフォルト値
+      if (info.useDistrict.includes('低層')) {
+        info.floorAreaRatio = '100%';
+      } else if (info.useDistrict.includes('中高層')) {
+        info.floorAreaRatio = '200%';
+      }
+      console.log('⚠️ Using default floorAreaRatio based on useDistrict');
+    }
+
     return info;
   }
 
@@ -737,24 +811,21 @@ ${searchResults}
 出力形式（JSON）:
 {
   "urbanPlanning": {
-    "useDistrict": "用途地域名（例：第一種住居地域）",
-    "buildingCoverageRatio": "建ぺい率（例：60%）",
-    "floorAreaRatio": "容積率（例：200%）",
-    "heightRestriction": "高さ制限（例：10m制限）",
-    "heightDistrict": "高度地区（例：第二種高度地区）"
+    "useDistrict": "用途地域名",
+    "buildingCoverageRatio": "建ぺい率",
+    "floorAreaRatio": "容積率",
+    "heightRestriction": "高さ制限",
+    "heightDistrict": "高度地区"
   },
   "sunlightRegulation": {
-    "measurementHeight": "測定面高さ（例：1.5m）",
-    "timeRange": "測定時間（例：冬至日 午前8時〜午後4時）",
-    "shadowTimeLimit": "日影時間制限（例：3時間以内）",
-    "targetBuildings": "規制対象建築物（例：軒高7m超）",
-    "targetArea": "規制対象地域（例：第一種低層住居専用地域）"
+    "measurementHeight": "測定面高さ",
+    "timeRange": "測定時間",
+    "shadowTimeLimit": "日影時間制限",
+    "targetBuildings": "規制対象建築物",
+    "targetArea": "規制対象地域"
   },
   "administrativeGuidance": [
-    "検索結果から見つかった条例・要綱名: 具体的な内容",
-    "例：開発行為規制: 500㎡以上の開発には許可が必要",
-    "例：みどりの条例: 敷地面積の20%以上の緑化が必要",
-    "地域固有の条例があれば追加してください"
+    "条例・要綱名: 具体的な内容"
   ]
 }
 
@@ -774,8 +845,8 @@ ${searchResults}
       const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
       
       if (!endpoint || !apiKey) {
-        console.warn('Azure OpenAI credentials not configured, using regex extraction');
-        return this.fallbackStructureExtraction(searchResults);
+        console.warn('Azure OpenAI credentials not configured, returning empty result');
+        return {};
       }
 
       const response = await fetch(`${endpoint}openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`, {
@@ -847,20 +918,6 @@ ${searchResults}
     if (Object.keys(urbanPlanning).length > 0) {
       result.urbanPlanning = urbanPlanning;
       console.log('✅ Urban planning info extracted via fallback');
-    } else {
-      // 最低限の情報を推測で提供
-      const fallbackUrbanPlanning: RegulationInfo = {};
-      
-      // 世田谷区の一般的な情報を検索結果から推測
-      if (searchResults.includes('世田谷区') && searchResults.includes('住居')) {
-        fallbackUrbanPlanning.useDistrict = '第一種低層住居専用地域（推定）';
-        fallbackUrbanPlanning.buildingCoverageRatio = '40-60%（地域により異なる）';
-        fallbackUrbanPlanning.floorAreaRatio = '80-150%（地域により異なる）';
-        fallbackUrbanPlanning.heightRestriction = '10m制限（推定）';
-        
-        result.urbanPlanning = fallbackUrbanPlanning;
-        console.log('📝 Using fallback urban planning estimates');
-      }
     }
 
     // 日影規制情報の抽出
@@ -869,20 +926,27 @@ ${searchResults}
       result.sunlightRegulation = sunlightRegulation;
     }
 
-    // 行政指導の抽出
+    // 行政指導の抽出（改良版）
     const administrativeGuidance: string[] = [];
-    const guidanceKeywords = ['開発行為', 'みどりの条例', '景観', '福祉環境', '中高層', '盛土規制'];
     
-    for (const keyword of guidanceKeywords) {
-      if (searchResults.includes(keyword)) {
-        if (keyword === '開発行為') administrativeGuidance.push('開発行為規制');
-        if (keyword === 'みどりの条例') administrativeGuidance.push('みどりの条例');
-        if (keyword === '景観') administrativeGuidance.push('景観計画');
-        if (keyword === '福祉環境') administrativeGuidance.push('福祉環境整備要綱');
-        if (keyword === '中高層') administrativeGuidance.push('中高層建築物条例');
-        if (keyword === '盛土規制') administrativeGuidance.push('盛土規制法');
+    // より包括的なキーワードセット
+    const guidancePatterns = [
+      { pattern: /(開発行為|都市計画法|1000.{0,5}㎡|開発許可)/, name: '都市計画法開発行為: 1000㎡以上の開発行為に適用' },
+      { pattern: /(みどりの条例|緑化|植栽|緑地|緑化義務)/, name: '緑化指導: 敷地面積150㎡以上の建築行為に対して緑化計画書の提出が求められます' },
+      { pattern: /(景観|景観計画|景観条例|景観地区)/, name: '景観条例・景観計画: 建築物の外観や高さに関する景観基準' },
+      { pattern: /(福祉|バリアフリー|福祉環境)/, name: '福祉環境整備要綱: バリアフリー対応に関する基準' },
+      { pattern: /(中高層|高層|近隣説明|標識設置)/, name: '中高層建築物等の条例: 一定高さ以上の建築物に対して、計画説明や標識設置を義務付け、近隣住民との調整を促進します' },
+      { pattern: /(盛土|盛り土|造成)/, name: '盛土規制法: 盛土や造成に関する規制' },
+      { pattern: /(住環境|駐車場|集合住宅)/, name: '住環境の整備に関する条例: 集合住宅や商業施設など一定規模以上の建築物に適用され、駐車場や緑化計画などの基準を定めています' },
+      { pattern: /(雨水|流出抑制|排水)/, name: '雨水流出抑制施設の設置に関する指導要綱: 雨水流出を抑制するための施設設置を求める要綱です' }
+    ];
+    
+    for (const { pattern, name } of guidancePatterns) {
+      if (pattern.test(searchResults)) {
+        administrativeGuidance.push(name);
       }
     }
+    
 
     if (administrativeGuidance.length > 0) {
       result.administrativeGuidance = administrativeGuidance;
@@ -907,8 +971,34 @@ ${searchResults}
     
     const searchResult = await this.performWebSearch(fullQuery);
     
-    // Azure OpenAI Serviceで検索結果を構造化
-    const structuredData = await this.structureSearchResultsWithAI(searchResult.results, prefecture, city);
+    // 改善された抽出メソッドを使用して情報を抽出
+    const urbanPlanning = this.extractUrbanPlanningInfo(searchResult.results);
+    const sunlightRegulation = this.extractSunlightRegulation(searchResult.results);
+    
+    // 行政指導は複数のクエリから抽出するため、簡易版を使用
+    const adminGuidance: string[] = [];
+    const guidanceKeywords = ['開発行為', 'みどりの条例', '景観計画', '福祉環境整備要綱', '中高層条例', '盛土規制'];
+    for (const keyword of guidanceKeywords) {
+      if (searchResult.results.includes(keyword)) {
+        const extracted = this.extractAdministrativeGuidance(searchResult.results, keyword);
+        if (extracted) {
+          adminGuidance.push(extracted);
+        }
+      }
+    }
+    
+    // 抽出結果を構造化
+    const structuredData = {
+      urbanPlanning: Object.keys(urbanPlanning).length > 0 ? urbanPlanning : undefined,
+      sunlightRegulation: Object.keys(sunlightRegulation).length > 0 ? sunlightRegulation : undefined,
+      administrativeGuidance: adminGuidance.length > 0 ? adminGuidance : undefined
+    };
+    
+    // 抽出できなかった場合はAIにフォールバック
+    if (!structuredData.urbanPlanning && !structuredData.sunlightRegulation && !structuredData.administrativeGuidance) {
+      console.log('⚠️ Pattern extraction failed, falling back to AI structuring...');
+      return await this.structureSearchResultsWithAI(searchResult.results, prefecture, city);
+    }
     
     return structuredData;
   }

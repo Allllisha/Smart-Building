@@ -97,7 +97,7 @@ export default function Scene3DSimple({ width = 800, height = 600 }: Scene3DSimp
       console.log('🖱️ マウスダウン:', e.clientX, e.clientY)
     })
     
-    renderer.domElement.addEventListener('mousemove', (e) => {
+    renderer.domElement.addEventListener('mousemove', () => {
       // console.log('🖱️ マウス移動:', e.clientX, e.clientY) // ノイズになるのでコメント
     })
 

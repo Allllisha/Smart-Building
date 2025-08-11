@@ -91,7 +91,7 @@ export class Text2BIMService {
 
     // 高さ情報
     parts.push(`最高高さは${project.building_max_height}mm、`)
-    parts.push(`基礎高さは${project.building_foundation_height}mmです。`)
+    parts.push(`基礎高さは100mmです。`)
 
     // 特記事項
     if (project.special_notes) {

@@ -1,4 +1,4 @@
-import axios from 'axios'
+// import axios from 'axios'
 
 export interface DetailedLocationInfo {
   // 行政区分
@@ -138,8 +138,8 @@ class DetailedLocationAnalysisService {
    */
   private calculateUrbanDensityScore(
     addressParts: any,
-    latitude: number,
-    longitude: number
+    _latitude: number,
+    _longitude: number
   ): number {
     let score = 5 // ベーススコア
 
@@ -280,7 +280,7 @@ class DetailedLocationAnalysisService {
   /**
    * 標高取得（簡易版）
    */
-  private async getElevation(latitude: number, longitude: number): Promise<number> {
+  private async getElevation(latitude: number, _longitude: number): Promise<number> {
     try {
       // 実際の標高APIを使用する場合
       // const response = await axios.get(`https://api.open-elevation.com/api/v1/lookup?locations=${latitude},${longitude}`)
@@ -351,8 +351,8 @@ class DetailedLocationAnalysisService {
    * フォールバック地域情報
    */
   private getFallbackLocationInfo(
-    latitude: number,
-    longitude: number,
+    _latitude: number,
+    _longitude: number,
     address: string
   ): DetailedLocationInfo {
     const addressParts = this.parseJapaneseAddress(address)

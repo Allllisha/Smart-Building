@@ -69,6 +69,13 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
       setError(null)
 
       try {
+        console.log('🏗️ ShadowRegulationCheck: プロジェクトデータ確認:', {
+          siteArea: project?.siteInfo?.siteArea,
+          buildingCoverage: project?.siteInfo?.buildingCoverage,
+          floorAreaRatio: project?.siteInfo?.floorAreaRatio,
+          roadWidth: project?.siteInfo?.roadWidth
+        })
+        
         // 日影規制チェックを実行（建物情報なしでも動作するように修正）
         const checkResult = await shadowRegulationCheckService.checkShadowRegulationForSite(project)
         setResult(checkResult)
@@ -88,7 +95,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
     project?.siteInfo?.siteArea,
     project?.siteInfo?.buildingCoverage,
     project?.siteInfo?.floorAreaRatio,
-    project?.siteInfo?.roadWidth,
+    project?.siteInfo?.frontRoadWidth,
     project?.siteInfo?.heightDistrict
   ])
 

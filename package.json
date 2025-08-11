@@ -42,5 +42,8 @@
     "vite": "^7.0.6",
     "web-ifc": "^0.0.69",
     "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0"
   }
 }

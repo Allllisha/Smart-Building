@@ -1,6 +1,6 @@
 import * as WebIFC from 'web-ifc'
-import { BuildingInfo, SiteInfo, ParkingPlan, FloorAreaDetail, UnitType } from '../types/project'
-import text2BIMService, { Text2BIMResult } from '../services/text2bim.service'
+import { BuildingInfo, SiteInfo, ParkingPlan } from '../types/project'
+import text2BIMService from '../services/text2bim.service'
 
 // 3D点の型定義
 export interface Point3D {
@@ -38,7 +38,7 @@ export class IFCGeneratorEnhanced {
    * Text2BIMサービスを活用してIFCファイルを生成
    */
   async generateEnhancedIFC(data: EnhancedIFCData): Promise<Uint8Array> {
-    this.modelID = this.ifcAPI.CreateModel()
+    this.modelID = this.ifcAPI.CreateModel({ schema: WebIFC.Schemas.IFC2X3 })
 
     // Text2BIMで詳細な建物形状を生成
     const text2BIMResult = text2BIMService.generateDetailedBuilding(
@@ -51,7 +51,7 @@ export class IFCGeneratorEnhanced {
     const ifcData = text2BIMService.generateIFCData(data.buildingInfo, text2BIMResult)
 
     // プロジェクト情報の設定
-    const project = this.createProject(data)
+    this.createProject(data)
     
     // サイトの作成
     const site = this.createSite(data)
@@ -63,7 +63,7 @@ export class IFCGeneratorEnhanced {
     this.ifcAPI.WriteLine(this.modelID, this.createRelAggregates(site, [building]))
 
     // 各階の作成
-    const storeys = this.createDetailedStoreys(ifcData.stories, data.buildingInfo)
+    const storeys = this.createDetailedStoreys(ifcData.stories)
     this.ifcAPI.WriteLine(this.modelID, this.createRelAggregates(building, storeys))
 
     // 構造要素の作成
@@ -92,6 +92,7 @@ export class IFCGeneratorEnhanced {
    */
   private createProject(data: EnhancedIFCData): number {
     const project = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCPROJECT,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -104,7 +105,8 @@ export class IFCGeneratorEnhanced {
       UnitsInContext: this.createUnitAssignment()
     }
 
-    return this.ifcAPI.WriteLine(this.modelID, project)
+    this.ifcAPI.WriteLine(this.modelID, project)
+    return project.GlobalId
   }
 
   /**
@@ -112,16 +114,17 @@ export class IFCGeneratorEnhanced {
    */
   private createSite(data: EnhancedIFCData): number {
     const site = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCSITE,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
       Name: 'Building Site',
-      Description: data.siteInfo ? `地目: ${data.siteInfo.landType}, 用途地域: ${data.siteInfo.zoningType}` : null,
+      Description: data.siteInfo ? `用途地域: ${data.siteInfo.zoningType}` : null,
       ObjectType: null,
       ObjectPlacement: this.createLocalPlacement(),
       Representation: null,
       LongName: data.location?.address || null,
-      CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+      CompositionType: WebIFC.IFCELEMENTCOMPONENT,
       RefLatitude: data.location ? this.convertToLatLong(data.location.latitude) : null,
       RefLongitude: data.location ? this.convertToLatLong(data.location.longitude) : null,
       RefElevation: 0.0,
@@ -138,6 +141,7 @@ export class IFCGeneratorEnhanced {
    */
   private createBuilding(data: EnhancedIFCData, buildingData: any): number {
     const building = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCBUILDING,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -147,7 +151,7 @@ export class IFCGeneratorEnhanced {
       ObjectPlacement: this.createLocalPlacement(),
       Representation: null,
       LongName: `${data.buildingInfo.usage} ${data.buildingInfo.floors}階建て`,
-      CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+      CompositionType: WebIFC.IFCELEMENTCOMPONENT,
       ElevationOfRefHeight: 0.0,
       ElevationOfTerrain: 0.0,
       BuildingAddress: data.location?.address ? this.createAddress(data.location.address) : null
@@ -160,11 +164,12 @@ export class IFCGeneratorEnhanced {
   /**
    * 詳細な階情報の作成
    */
-  private createDetailedStoreys(stories: any[], buildingInfo: BuildingInfo): number[] {
+  private createDetailedStoreys(stories: any[]): number[] {
     const storeys: number[] = []
 
-    stories.forEach((story, index) => {
+    stories.forEach((story) => {
       const storey = {
+        expressID: ++this.globalIdCounter,
         type: WebIFC.IFCBUILDINGSTOREY,
         GlobalId: this.createGuid(),
         OwnerHistory: this.createOwnerHistory(),
@@ -174,12 +179,12 @@ export class IFCGeneratorEnhanced {
         ObjectPlacement: this.createLocalPlacement(0, 0, story.elevation * 1000), // m to mm
         Representation: null,
         LongName: null,
-        CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
+        CompositionType: WebIFC.IFCELEMENTCOMPONENT,
         Elevation: story.elevation
       }
 
-      const storeyId = this.ifcAPI.WriteLine(this.modelID, storey)
-      storeys.push(storeyId)
+      this.ifcAPI.WriteLine(this.modelID, storey)
+      storeys.push(storey.expressID)
     })
 
     return storeys
@@ -189,7 +194,7 @@ export class IFCGeneratorEnhanced {
    * 構造要素の作成
    */
   private createStructuralElements(structure: any, storeys: number[]): void {
-    const { type, grid, foundation } = structure
+    const { grid, foundation } = structure
 
     // 基礎の作成
     if (foundation) {
@@ -219,6 +224,7 @@ export class IFCGeneratorEnhanced {
     spaces.forEach(space => {
       if (space.floor < storeys.length) {
         const spaceElement = {
+          expressID: ++this.globalIdCounter,
           type: WebIFC.IFCSPACE,
           GlobalId: this.createGuid(),
           OwnerHistory: this.createOwnerHistory(),
@@ -228,13 +234,13 @@ export class IFCGeneratorEnhanced {
           ObjectPlacement: this.createLocalPlacement(),
           Representation: null,
           LongName: null,
-          CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
-          InteriorOrExteriorSpace: WebIFC.IFCINTERNALOREXTERNALENUM.INTERNAL,
+          CompositionType: WebIFC.IFCELEMENTCOMPONENT,
+          // InteriorOrExteriorSpace: WebIFC.IFCINTERNALOREXTERNALENUM.INTERNAL,
           ElevationWithFlooring: 0.0
         }
 
-        const spaceId = this.ifcAPI.WriteLine(this.modelID, spaceElement)
-        this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storeys[space.floor], [spaceId]))
+        this.ifcAPI.WriteLine(this.modelID, spaceElement)
+        this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storeys[space.floor], [spaceElement.expressID]))
       }
     })
   }
@@ -275,7 +281,9 @@ export class IFCGeneratorEnhanced {
    * 基礎の作成
    */
   private createFoundation(foundation: any, groundFloor: number): void {
+    const footingId = ++this.globalIdCounter
     const footing = {
+      expressID: footingId,
       type: WebIFC.IFCFOOTING,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -285,10 +293,10 @@ export class IFCGeneratorEnhanced {
       ObjectPlacement: this.createLocalPlacement(0, 0, -foundation.depth * 1000),
       Representation: null,
       Tag: null,
-      PredefinedType: WebIFC.IFCFOOTINGTYPEENUM.STRIP_FOOTING
+      PredefinedType: 0 // DEFAULT FOOTING TYPE
     }
 
-    const footingId = this.ifcAPI.WriteLine(this.modelID, footing)
+    this.ifcAPI.WriteLine(this.modelID, footing)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(groundFloor, [footingId]))
   }
 
@@ -303,7 +311,9 @@ export class IFCGeneratorEnhanced {
       const x = (i % 2) * spacing - spacing / 2
       const z = Math.floor(i / 2) * spacing - spacing / 2
 
+      const columnId = ++this.globalIdCounter
       const column = {
+        expressID: columnId,
         type: WebIFC.IFCCOLUMN,
         GlobalId: this.createGuid(),
         OwnerHistory: this.createOwnerHistory(),
@@ -315,7 +325,7 @@ export class IFCGeneratorEnhanced {
         Tag: `C${floorIndex + 1}-${i + 1}`
       }
 
-      const columnId = this.ifcAPI.WriteLine(this.modelID, column)
+      this.ifcAPI.WriteLine(this.modelID, column)
       this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [columnId]))
     }
   }
@@ -324,7 +334,9 @@ export class IFCGeneratorEnhanced {
    * 梁の作成
    */
   private createBeams(grid: any, storey: number, floorIndex: number): void {
+    const beamId = ++this.globalIdCounter
     const beam = {
+      expressID: beamId,
       type: WebIFC.IFCBEAM,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -336,7 +348,7 @@ export class IFCGeneratorEnhanced {
       Tag: `B${floorIndex + 1}`
     }
 
-    const beamId = this.ifcAPI.WriteLine(this.modelID, beam)
+    this.ifcAPI.WriteLine(this.modelID, beam)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [beamId]))
   }
 
@@ -344,7 +356,9 @@ export class IFCGeneratorEnhanced {
    * スラブの作成
    */
   private createSlabs(grid: any, storey: number, floorIndex: number): void {
+    const slabId = ++this.globalIdCounter
     const slab = {
+      expressID: slabId,
       type: WebIFC.IFCSLAB,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -354,10 +368,10 @@ export class IFCGeneratorEnhanced {
       ObjectPlacement: this.createLocalPlacement(),
       Representation: null,
       Tag: `S${floorIndex + 1}`,
-      PredefinedType: WebIFC.IFCSLABTYPEENUM.FLOOR
+      PredefinedType: 0 // FLOOR
     }
 
-    const slabId = this.ifcAPI.WriteLine(this.modelID, slab)
+    this.ifcAPI.WriteLine(this.modelID, slab)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [slabId]))
   }
 
@@ -365,7 +379,9 @@ export class IFCGeneratorEnhanced {
    * 窓の作成
    */
   private createWindow(windowData: any, storey: number): void {
+    const windowId = ++this.globalIdCounter
     const window = {
+      expressID: windowId,
       type: WebIFC.IFCWINDOW,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -383,7 +399,7 @@ export class IFCGeneratorEnhanced {
       OverallWidth: windowData.width * 1000
     }
 
-    const windowId = this.ifcAPI.WriteLine(this.modelID, window)
+    this.ifcAPI.WriteLine(this.modelID, window)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [windowId]))
   }
 
@@ -391,7 +407,9 @@ export class IFCGeneratorEnhanced {
    * ドアの作成
    */
   private createDoor(doorData: any, storey: number): void {
+    const doorId = ++this.globalIdCounter
     const door = {
+      expressID: doorId,
       type: WebIFC.IFCDOOR,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -409,7 +427,7 @@ export class IFCGeneratorEnhanced {
       OverallWidth: doorData.width * 1000
     }
 
-    const doorId = this.ifcAPI.WriteLine(this.modelID, door)
+    this.ifcAPI.WriteLine(this.modelID, door)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [doorId]))
   }
 
@@ -417,7 +435,9 @@ export class IFCGeneratorEnhanced {
    * バルコニーの作成
    */
   private createBalcony(balconyData: any, storey: number): void {
+    const balconyId = ++this.globalIdCounter
     const balcony = {
+      expressID: balconyId,
       type: WebIFC.IFCSLAB,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -431,10 +451,10 @@ export class IFCGeneratorEnhanced {
       ),
       Representation: null,
       Tag: null,
-      PredefinedType: WebIFC.IFCSLABTYPEENUM.LANDING
+      PredefinedType: 2 // LANDING
     }
 
-    const balconyId = this.ifcAPI.WriteLine(this.modelID, balcony)
+    this.ifcAPI.WriteLine(this.modelID, balcony)
     this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(storey, [balconyId]))
   }
 
@@ -443,7 +463,9 @@ export class IFCGeneratorEnhanced {
    */
   private createParkingElements(parkingPlan: ParkingPlan, site: number): void {
     if (parkingPlan.parkingSpaces > 0) {
+      const parkingId = ++this.globalIdCounter
       const parking = {
+        expressID: parkingId,
         type: WebIFC.IFCSPACE,
         GlobalId: this.createGuid(),
         OwnerHistory: this.createOwnerHistory(),
@@ -453,12 +475,12 @@ export class IFCGeneratorEnhanced {
         ObjectPlacement: this.createLocalPlacement(),
         Representation: null,
         LongName: null,
-        CompositionType: WebIFC.IFCELEMENTCOMPOSITIONENUM.ELEMENT,
-        InteriorOrExteriorSpace: WebIFC.IFCINTERNALOREXTERNALENUM.EXTERNAL,
+        CompositionType: WebIFC.IFCELEMENTCOMPONENT,
+        // InteriorOrExteriorSpace: 0, // EXTERNAL
         ElevationWithFlooring: 0.0
       }
 
-      const parkingId = this.ifcAPI.WriteLine(this.modelID, parking)
+      this.ifcAPI.WriteLine(this.modelID, parking)
       this.ifcAPI.WriteLine(this.modelID, this.createRelContainedInSpatialStructure(site, [parkingId]))
     }
   }
@@ -470,29 +492,35 @@ export class IFCGeneratorEnhanced {
   private createGuid(): number {
     // 簡易的なGUID生成
     const guid = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCGLOBALLYUNIQUEID,
-      value: `${this.globalIdCounter++}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      value: `${this.globalIdCounter}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     }
-    return this.ifcAPI.WriteLine(this.modelID, guid)
+    this.ifcAPI.WriteLine(this.modelID, guid)
+    return guid.expressID
   }
 
   private createOwnerHistory(): number {
     const ownerHistory = {
+      expressID: ++this.globalIdCounter,
       type: WebIFC.IFCOWNERHISTORY,
       OwningUser: this.createPersonAndOrganization(),
       OwningApplication: this.createApplication(),
-      State: WebIFC.IFCSTATENUM.READONLY,
-      ChangeAction: WebIFC.IFCCHANGEACTIONENUM.ADDED,
+      State: 0, // READONLY
+      ChangeAction: 0, // ADDED
       LastModifiedDate: Date.now(),
       LastModifyingUser: null,
       LastModifyingApplication: null,
       CreationDate: Date.now()
     }
-    return this.ifcAPI.WriteLine(this.modelID, ownerHistory)
+    this.ifcAPI.WriteLine(this.modelID, ownerHistory)
+    return ownerHistory.expressID
   }
 
   private createPersonAndOrganization(): number {
+    const personId = ++this.globalIdCounter
     const person = {
+      expressID: personId,
       type: WebIFC.IFCPERSON,
       Identification: 'user',
       FamilyName: 'User',
@@ -503,9 +531,11 @@ export class IFCGeneratorEnhanced {
       Roles: null,
       Addresses: null
     }
-    const personId = this.ifcAPI.WriteLine(this.modelID, person)
+    this.ifcAPI.WriteLine(this.modelID, person)
 
+    const organizationId = ++this.globalIdCounter
     const organization = {
+      expressID: organizationId,
       type: WebIFC.IFCORGANIZATION,
       Identification: 'SmartBuildingPlanner',
       Name: 'Smart Building Planner',
@@ -513,30 +543,38 @@ export class IFCGeneratorEnhanced {
       Roles: null,
       Addresses: null
     }
-    const organizationId = this.ifcAPI.WriteLine(this.modelID, organization)
+    this.ifcAPI.WriteLine(this.modelID, organization)
 
+    const personAndOrgId = ++this.globalIdCounter
     const personAndOrg = {
+      expressID: personAndOrgId,
       type: WebIFC.IFCPERSONANDORGANIZATION,
       ThePerson: personId,
       TheOrganization: organizationId,
       Roles: null
     }
-    return this.ifcAPI.WriteLine(this.modelID, personAndOrg)
+    this.ifcAPI.WriteLine(this.modelID, personAndOrg)
+    return personAndOrgId
   }
 
   private createApplication(): number {
+    const applicationId = ++this.globalIdCounter
     const application = {
+      expressID: applicationId,
       type: WebIFC.IFCAPPLICATION,
       ApplicationDeveloper: this.createOrganization(),
       Version: '1.0.0',
       ApplicationFullName: 'Smart Building Planner',
       ApplicationIdentifier: 'SBP'
     }
-    return this.ifcAPI.WriteLine(this.modelID, application)
+    this.ifcAPI.WriteLine(this.modelID, application)
+    return applicationId
   }
 
   private createOrganization(): number {
+    const organizationId = ++this.globalIdCounter
     const organization = {
+      expressID: organizationId,
       type: WebIFC.IFCORGANIZATION,
       Identification: 'SmartBuildingPlanner',
       Name: 'Smart Building Planner',
@@ -544,11 +582,14 @@ export class IFCGeneratorEnhanced {
       Roles: null,
       Addresses: null
     }
-    return this.ifcAPI.WriteLine(this.modelID, organization)
+    this.ifcAPI.WriteLine(this.modelID, organization)
+    return organizationId
   }
 
   private createGeometricRepresentationContext(): number {
+    const contextId = ++this.globalIdCounter
     const context = {
+      expressID: contextId,
       type: WebIFC.IFCGEOMETRICREPRESENTATIONCONTEXT,
       ContextIdentifier: '3D',
       ContextType: 'Model',
@@ -557,87 +598,115 @@ export class IFCGeneratorEnhanced {
       WorldCoordinateSystem: this.createAxis2Placement3D(),
       TrueNorth: null
     }
-    return this.ifcAPI.WriteLine(this.modelID, context)
+    this.ifcAPI.WriteLine(this.modelID, context)
+    return contextId
   }
 
   private createAxis2Placement3D(x: number = 0, y: number = 0, z: number = 0): number {
+    const locationId = ++this.globalIdCounter
     const location = {
+      expressID: locationId,
       type: WebIFC.IFCCARTESIANPOINT,
       Coordinates: [x, y, z]
     }
-    const locationId = this.ifcAPI.WriteLine(this.modelID, location)
+    this.ifcAPI.WriteLine(this.modelID, location)
 
+    const axisId = ++this.globalIdCounter
     const axis = {
+      expressID: axisId,
       type: WebIFC.IFCDIRECTION,
       DirectionRatios: [0, 0, 1]
     }
-    const axisId = this.ifcAPI.WriteLine(this.modelID, axis)
+    this.ifcAPI.WriteLine(this.modelID, axis)
 
+    const refDirectionId = ++this.globalIdCounter
     const refDirection = {
+      expressID: refDirectionId,
       type: WebIFC.IFCDIRECTION,
       DirectionRatios: [1, 0, 0]
     }
-    const refDirectionId = this.ifcAPI.WriteLine(this.modelID, refDirection)
+    this.ifcAPI.WriteLine(this.modelID, refDirection)
 
+    const placementId = ++this.globalIdCounter
     const placement = {
+      expressID: placementId,
       type: WebIFC.IFCAXIS2PLACEMENT3D,
       Location: locationId,
       Axis: axisId,
       RefDirection: refDirectionId
     }
-    return this.ifcAPI.WriteLine(this.modelID, placement)
+    this.ifcAPI.WriteLine(this.modelID, placement)
+    return placementId
   }
 
   private createLocalPlacement(x: number = 0, y: number = 0, z: number = 0): number {
+    const placementId = ++this.globalIdCounter
     const placement = {
+      expressID: placementId,
       type: WebIFC.IFCLOCALPLACEMENT,
       PlacementRelTo: null,
       RelativePlacement: this.createAxis2Placement3D(x, y, z)
     }
-    return this.ifcAPI.WriteLine(this.modelID, placement)
+    this.ifcAPI.WriteLine(this.modelID, placement)
+    return placementId
   }
 
   private createUnitAssignment(): number {
-    const units = []
+    const unitIds: number[] = []
 
     // 長さの単位
-    units.push({
+    const lengthUnitId = ++this.globalIdCounter
+    const lengthUnit = {
+      expressID: lengthUnitId,
       type: WebIFC.IFCSIUNIT,
       Dimensions: null,
-      UnitType: WebIFC.IFCUNITTYPE.LENGTHUNIT,
-      Prefix: WebIFC.IFCSIUNITPREFIX.MILLI,
-      Name: WebIFC.IFCSIUNITNAME.METRE
-    })
+      UnitType: 1, // LENGTHUNIT
+      Prefix: 3, // MILLI
+      Name: 1 // METRE
+    }
+    this.ifcAPI.WriteLine(this.modelID, lengthUnit)
+    unitIds.push(lengthUnitId)
 
     // 面積の単位
-    units.push({
+    const areaUnitId = ++this.globalIdCounter
+    const areaUnit = {
+      expressID: areaUnitId,
       type: WebIFC.IFCSIUNIT,
       Dimensions: null,
-      UnitType: WebIFC.IFCUNITTYPE.AREAUNIT,
+      UnitType: 2, // AREAUNIT
       Prefix: null,
-      Name: WebIFC.IFCSIUNITNAME.SQUARE_METRE
-    })
+      Name: 2 // SQUARE_METRE
+    }
+    this.ifcAPI.WriteLine(this.modelID, areaUnit)
+    unitIds.push(areaUnitId)
 
     // 体積の単位
-    units.push({
+    const volumeUnitId = ++this.globalIdCounter
+    const volumeUnit = {
+      expressID: volumeUnitId,
       type: WebIFC.IFCSIUNIT,
       Dimensions: null,
-      UnitType: WebIFC.IFCUNITTYPE.VOLUMEUNIT,
+      UnitType: 3, // VOLUMEUNIT
       Prefix: null,
-      Name: WebIFC.IFCSIUNITNAME.CUBIC_METRE
-    })
+      Name: 3 // CUBIC_METRE
+    }
+    this.ifcAPI.WriteLine(this.modelID, volumeUnit)
+    unitIds.push(volumeUnitId)
 
-    const unitIds = units.map(unit => this.ifcAPI.WriteLine(this.modelID, unit))
-
+    const unitAssignmentId = ++this.globalIdCounter
     const unitAssignment = {
+      expressID: unitAssignmentId,
       type: WebIFC.IFCUNITASSIGNMENT,
       Units: unitIds
     }
-    return this.ifcAPI.WriteLine(this.modelID, unitAssignment)
+    this.ifcAPI.WriteLine(this.modelID, unitAssignment)
+    return unitAssignmentId
   }
 
   private createRelAggregates(relating: number, related: number[]): any {
+    const relId = ++this.globalIdCounter
     return {
+      expressID: relId,
       type: WebIFC.IFCRELAGGREGATES,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -649,7 +718,9 @@ export class IFCGeneratorEnhanced {
   }
 
   private createRelContainedInSpatialStructure(relating: number, related: number[]): any {
+    const relId = ++this.globalIdCounter
     return {
+      expressID: relId,
       type: WebIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE,
       GlobalId: this.createGuid(),
       OwnerHistory: this.createOwnerHistory(),
@@ -669,9 +740,11 @@ export class IFCGeneratorEnhanced {
   }
 
   private createAddress(addressString: string): number {
+    const addressId = ++this.globalIdCounter
     const address = {
+      expressID: addressId,
       type: WebIFC.IFCPOSTALADDRESS,
-      Purpose: WebIFC.IFCADDRESSTYPEENUM.SITE,
+      Purpose: 0, // SITE
       Description: null,
       UserDefinedPurpose: null,
       InternalLocation: null,
@@ -682,7 +755,8 @@ export class IFCGeneratorEnhanced {
       PostalCode: null,
       Country: 'Japan'
     }
-    return this.ifcAPI.WriteLine(this.modelID, address)
+    this.ifcAPI.WriteLine(this.modelID, address)
+    return addressId
   }
 }
 

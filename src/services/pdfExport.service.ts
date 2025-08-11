@@ -18,7 +18,7 @@ export const generateEstimationPDF = async (
     return
   }
 
-  const totalFloorArea = project.buildingInfo.totalFloorArea || project.buildingInfo.buildingArea * project.buildingInfo.floors
+  const totalFloorArea = project.buildingInfo.totalFloorArea || (project.buildingInfo.buildingArea || 0) * (project.buildingInfo.floors || 1)
   const pricePerSqm = Math.round(estimation.totalCost / totalFloorArea)
   const pricePerTsubo = Math.round(estimation.totalCost / (totalFloorArea * 0.3025))
 
@@ -388,7 +388,7 @@ export const generateEstimationPDF = async (
       </div>
       <div class="info-row">
         <div class="info-label">建築面積：</div>
-        <div class="info-value"><strong>${project.buildingInfo.buildingArea.toLocaleString()} ㎡</strong></div>
+        <div class="info-value"><strong>${(project.buildingInfo.buildingArea || 0).toLocaleString()} ㎡</strong></div>
       </div>
       <div class="info-row">
         <div class="info-label">構造：</div>
@@ -518,9 +518,9 @@ export const generateEstimationPDF = async (
 
 // Alternative method using data URL (for future implementation)
 export const generateEstimationPDFDataUrl = async (
-  project: Project,
-  estimation: EstimationResult,
-  unitPrices: any
+  _project: Project,
+  _estimation: EstimationResult,
+  _unitPrices: any
 ): Promise<string> => {
   // This could be implemented to return a data URL of the PDF
   // For now, we'll use the print method above

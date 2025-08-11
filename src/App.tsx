@@ -5,7 +5,6 @@ import Dashboard from '@/pages/Dashboard'
 import ProjectEditor from '@/pages/ProjectEditor'
 import SimulationView from '@/pages/SimulationView'
 import EstimationView from '@/pages/EstimationView'
-import TestSimulation from '@/pages/TestSimulation'
 import Settings from '@/pages/Settings'
 
 function App() {
@@ -18,7 +17,6 @@ function App() {
           <Route path="project/:id" element={<ProjectEditor />} />
           <Route path="project/:id/simulation" element={<SimulationView />} />
           <Route path="project/:id/estimation" element={<EstimationView />} />
-          <Route path="test-simulation" element={<TestSimulation />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

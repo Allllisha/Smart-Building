@@ -15,16 +15,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
   Divider,
   IconButton,
   Tooltip,
   useTheme,
   useMediaQuery,
   alpha,
-  CircularProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -35,16 +31,19 @@ import { useProjectStore } from '@/store/projectStore'
 import { Project, BuildingUsage, StructureType, FloorAreaDetail, UnitType } from '@/types/project'
 import { projectApi } from '@/api/projectApi'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
-import { fetchRegulationInfo, ShadowRegulation, ZoningInfo, AdministrativeGuidanceItem, checkRegulationCompliance } from '@/services/regulationService'
+import { checkRegulationCompliance } from '@/services/regulationService'
 import { FloorAreaInput } from '@/components/FloorAreaInput'
-import { searchComprehensiveInfo, RegulationInfo } from '@/api/webSearchApi'
+// import { searchComprehensiveInfo, RegulationInfo } from '@/api/webSearchApi'
 import { Stack, Alert, Snackbar } from '@mui/material'
 import { People as PeopleIcon } from '@mui/icons-material'
 import { useRegulationSearch } from '@/hooks/useRegulationSearch'
 import { RegulationInfoDisplay } from '@/components/RegulationInfoDisplay'
 import { ZoningInfoDisplay } from '@/components/ZoningInfoDisplay'
+import { DesignSummaryTable } from '@/components/DesignSummaryTable'
+import { DesignSummaryCompact } from '@/components/DesignSummaryCompact'
+import { ShadowRegulationCheck } from '@/components/ShadowRegulationCheck'
 
-const steps = ['敷地設定', '建物情報設定', '面積・規制情報', 'クライアント情報']
+const steps = ['敷地設定', '面積・規制情報', '建物情報設定', '設計概要', 'クライアント情報']
 
 export default function ProjectEditor() {
   const { id } = useParams<{ id: string }>()
@@ -52,7 +51,7 @@ export default function ProjectEditor() {
   const [searchParams] = useSearchParams()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const { currentProject, updateProject, updateProjectAsync, projects, setCurrentProject, deleteProject, setError, setLoading } = useProjectStore()
+  const { currentProject, updateProject, updateProjectAsync, projects, setCurrentProject, deleteProject, setError } = useProjectStore()
   const [activeStep, setActiveStep] = useState(0)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -63,7 +62,7 @@ export default function ProjectEditor() {
     (updates) => debouncedUpdateProject(currentProject!.id, updates)
   )
   
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMapUpdateRef = useRef<boolean>(false)
   
   // バリデーション状態
@@ -278,8 +277,8 @@ export default function ProjectEditor() {
         // 初期値は設定せず、AI検索の結果を待つ
         setZoningInfo({
           zoningType: '',
-          buildingCoverageRatio: 0,
-          floorAreaRatio: 0,
+          buildingCoverageRatio: '',
+          floorAreaRatio: '',
           heightLimit: '',
           heightDistrict: ''
         });
@@ -365,8 +364,8 @@ export default function ProjectEditor() {
             }
             let updatedZoning = {
               zoningType: '',
-              buildingCoverageRatio: 0,
-              floorAreaRatio: 0,
+              buildingCoverageRatio: '',
+              floorAreaRatio: '',
               heightLimit: '',
               heightDistrict: ''
             }
@@ -505,8 +504,8 @@ export default function ProjectEditor() {
             },
             zoning: {
               zoningType: '',
-              buildingCoverageRatio: 0,
-              floorAreaRatio: 0,
+              buildingCoverageRatio: '',
+              floorAreaRatio: '',
               heightLimit: '',
               heightDistrict: ''
             },
@@ -541,8 +540,8 @@ export default function ProjectEditor() {
               },
               zoning: {
                 zoningType: mainSearchResult.data.urbanPlanning?.useDistrict || '',
-                buildingCoverageRatio: parseFloat(mainSearchResult.data.urbanPlanning?.buildingCoverageRatio?.match(/\d+/)?.[0] || '0'),
-                floorAreaRatio: parseFloat(mainSearchResult.data.urbanPlanning?.floorAreaRatio?.match(/\d+/)?.[0] || '0'),
+                buildingCoverageRatio: mainSearchResult.data.urbanPlanning?.buildingCoverageRatio?.match(/\d+/)?.[0] ? parseFloat(mainSearchResult.data.urbanPlanning.buildingCoverageRatio.match(/\d+/)[0]) : '',
+                floorAreaRatio: mainSearchResult.data.urbanPlanning?.floorAreaRatio?.match(/\d+/)?.[0] ? parseFloat(mainSearchResult.data.urbanPlanning.floorAreaRatio.match(/\d+/)[0]) : '',
                 heightLimit: mainSearchResult.data.urbanPlanning?.heightRestriction || '',
                 heightDistrict: mainSearchResult.data.urbanPlanning?.heightDistrict || ''
               },
@@ -956,21 +955,6 @@ export default function ProjectEditor() {
                   
                   <TextField
                     fullWidth
-                    label="地目"
-                    value={currentProject.siteInfo.landType ?? ''}
-                    onChange={(e) => {
-                      // console.log('Updating landType to:', e.target.value)
-                      debouncedUpdateProject(currentProject.id, {
-                        siteInfo: { ...currentProject.siteInfo, landType: e.target.value },
-                      })
-                    }}
-                    placeholder="例：宅地、雑種地、田、畑など"
-                    helperText="土地の種類を入力してください"
-                    variant="outlined"
-                  />
-                  
-                  <TextField
-                    fullWidth
                     label="敷地面積 (㎡)"
                     type="number"
                     value={currentProject.siteInfo.siteArea ? currentProject.siteInfo.siteArea.toString() : ''}
@@ -986,18 +970,17 @@ export default function ProjectEditor() {
                   
                   <TextField
                     fullWidth
-                    label="有効敷地面積 (㎡)"
+                    label="前面道路幅 (m)"
                     type="number"
-                    value={currentProject.siteInfo.effectiveSiteArea ? currentProject.siteInfo.effectiveSiteArea.toString() : ''}
+                    value={currentProject.siteInfo.frontRoadWidth ? currentProject.siteInfo.frontRoadWidth.toString() : ''}
                     onChange={(e) => {
-                      // console.log('Updating effectiveSiteArea to:', e.target.value)
                       const value = e.target.value === '' ? null : Number(e.target.value)
                       debouncedUpdateProject(currentProject.id, {
-                        siteInfo: { ...currentProject.siteInfo, effectiveSiteArea: value },
+                        siteInfo: { ...currentProject.siteInfo, frontRoadWidth: value },
                       })
                     }}
-                    placeholder="140"
-                    helperText="建物が建築可能な面積"
+                    placeholder="4.0"
+                    helperText="建物に接する道路の幅員"
                     variant="outlined"
                   />
                 </Box>
@@ -1144,7 +1127,17 @@ export default function ProjectEditor() {
                 {activeStep === steps.length - 1 ? (
                   <Button
                     variant="contained"
-                    onClick={() => navigate(`/project/${currentProject.id}/simulation`)}
+                    onClick={async () => {
+                      // 保存してからシミュレーションへ遷移
+                      try {
+                        await handleSave()
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      } catch (error) {
+                        console.error('保存エラー:', error)
+                        // エラーが発生してもシミュレーションには遷移する
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      }
+                    }}
                     sx={{ 
                       borderRadius: 2,
                       textTransform: 'none',
@@ -1176,10 +1169,244 @@ export default function ProjectEditor() {
 
       case 1:
         return (
-          <Paper sx={{ p: 4, borderRadius: 2 }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4 }}>
+              面積・規制情報
+            </Typography>
+            
+            <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, overflow: 'hidden' }}>
+              {/* 左側：フォーム */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '65%', xl: '60%' },
+                p: { xs: 2, md: 4 },
+                pt: 0,
+                overflow: 'auto',
+                borderRight: { lg: `1px solid ${theme.palette.divider}` }
+              }}>
+                <Grid container spacing={4}>
+                  <Grid size={{ xs: 12 }}>
+                    <ZoningInfoDisplay
+                      zoningState={regulationState.zoningInfo}
+                      siteInfo={currentProject.siteInfo}
+                      onRefresh={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['zoning'] })}
+                      onSiteInfoChange={(updates) => {
+                        debouncedUpdateProject(currentProject.id, {
+                          siteInfo: { ...currentProject.siteInfo, ...updates }
+                        })
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Divider sx={{ my: 3 }} />
+                    <RegulationInfoDisplay
+                      searchState={regulationState}
+                      administrativeGuidance={currentProject.siteInfo.administrativeGuidance}
+                      administrativeGuidanceDetails={currentProject.siteInfo.administrativeGuidanceDetails}
+                      shadowRegulation={currentProject.siteInfo.shadowRegulation}
+                      onRefreshShadow={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['shadow'] })}
+                      onRefreshAdminGuidance={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['administrative'] })}
+                      onAdminGuidanceChange={(itemId, checked) => {
+                        const updatedGuidance = {
+                          ...currentProject.siteInfo.administrativeGuidance,
+                          [itemId]: checked,
+                        };
+                        debouncedUpdateProject(currentProject.id, {
+                          siteInfo: {
+                            ...currentProject.siteInfo,
+                            administrativeGuidance: updatedGuidance,
+                            administrativeGuidanceDetails: regulationState.administrativeGuidance.data || currentProject.siteInfo.administrativeGuidanceDetails || [],
+                          },
+                        });
+                      }}
+                      onShadowRegulationChange={(updates) => {
+                        debouncedUpdateProject(currentProject.id, {
+                          siteInfo: {
+                            ...currentProject.siteInfo,
+                            shadowRegulation: {
+                              ...currentProject.siteInfo.shadowRegulation,
+                              ...updates
+                            },
+                          },
+                        });
+                      }}
+                      onAddCustomGuidance={(item) => {
+                        // キャメルケースのIDを生成
+                        const id = item.name.toLowerCase()
+                          .replace(/[^\w\s]/g, '')
+                          .replace(/\s+/g, ' ')
+                          .trim()
+                          .split(' ')
+                          .map((word, index) => 
+                            index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join('');
+                        
+                        const updatedGuidance = {
+                          ...currentProject.siteInfo.administrativeGuidance,
+                          [id]: false, // デフォルトは未選択
+                        };
+                        
+                        // 詳細情報にも追加
+                        const updatedDetails = [
+                          ...(currentProject.siteInfo.administrativeGuidanceDetails || []),
+                          {
+                            id,
+                            name: item.name,
+                            description: item.description,
+                            isRequired: false
+                          }
+                        ];
+                        
+                        debouncedUpdateProject(currentProject.id, {
+                          siteInfo: {
+                            ...currentProject.siteInfo,
+                            administrativeGuidance: updatedGuidance,
+                            administrativeGuidanceDetails: updatedDetails,
+                          },
+                        });
+                      }}
+                      onRemoveCustomGuidance={(itemId) => {
+                        const updatedGuidance = { ...currentProject.siteInfo.administrativeGuidance };
+                        delete updatedGuidance[itemId];
+                        
+                        // 詳細情報からも削除
+                        const updatedDetails = (currentProject.siteInfo.administrativeGuidanceDetails || [])
+                          .filter(item => item.id !== itemId);
+                        
+                        debouncedUpdateProject(currentProject.id, {
+                          siteInfo: {
+                            ...currentProject.siteInfo,
+                            administrativeGuidance: updatedGuidance,
+                            administrativeGuidanceDetails: updatedDetails,
+                          },
+                        });
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* 右側：日影規制チェック */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '35%', xl: '40%' },
+                p: { xs: 2, md: 3 },
+                bgcolor: 'grey.50',
+                overflow: 'auto',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  日影規制チェック
+                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  <ShadowRegulationCheck 
+                    project={currentProject} 
+                  />
+                </Box>
+              </Box>
+            </Box>
+
+            
+            {/* ナビゲーションボタン */}
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: isMobile ? 2 : 0,
+              mt: 4,
+              pt: 3,
+              borderTop: `1px solid ${theme.palette.grey[200]}`,
+            }}>
+              <Button
+                disabled={activeStep === 0}
+                onClick={handleBack}
+                sx={{ 
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  order: isMobile ? 2 : 1,
+                }}
+              >
+                戻る
+              </Button>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 2,
+                flexDirection: isMobile ? 'column' : 'row',
+                order: isMobile ? 1 : 2,
+              }}>
+                <Button 
+                  onClick={handleSave} 
+                  variant="outlined"
+                  sx={{ 
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    px: 3,
+                  }}
+                >
+                  保存
+                </Button>
+                {activeStep === steps.length - 1 ? (
+                  <Button
+                    variant="contained"
+                    onClick={async () => {
+                      // 保存してからシミュレーションへ遷移
+                      try {
+                        await handleSave()
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      } catch (error) {
+                        console.error('保存エラー:', error)
+                        // エラーが発生してもシミュレーションには遷移する
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      }
+                    }}
+                    sx={{ 
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 4,
+                    }}
+                  >
+                    シミュレーションへ
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="contained" 
+                    onClick={handleNext}
+                    sx={{ 
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 4,
+                    }}
+                  >
+                    次へ
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        )
+
+      case 2:
+        return (
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4 }}>
               建物情報設定
             </Typography>
+            
+            <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, overflow: 'hidden' }}>
+              {/* 左側：フォーム */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '65%', xl: '60%' },
+                p: { xs: 2, md: 4 },
+                pt: 0,
+                overflow: 'auto',
+                borderRight: { lg: `1px solid ${theme.palette.divider}` }
+              }}>
             
             {/* 建物基本情報アコーディオン */}
             <Accordion defaultExpanded sx={{ mb: 2 }}>
@@ -1235,9 +1462,10 @@ export default function ProjectEditor() {
                       })
                     }
                   >
+                    <MenuItem value="鉄骨鉄筋コンクリート造">鉄骨鉄筋コンクリート造</MenuItem>
+                    <MenuItem value="鉄筋コンクリート造">鉄筋コンクリート造</MenuItem>
                     <MenuItem value="壁式鉄筋コンクリート造">壁式鉄筋コンクリート造</MenuItem>
-                    <MenuItem value="木造軸組工法">木造軸組工法</MenuItem>
-                    <MenuItem value="鉄骨造">鉄骨造</MenuItem>
+                    <MenuItem value="木造">木造</MenuItem>
                     <MenuItem value="その他">その他</MenuItem>
                   </Select>
                 </FormControl>
@@ -1301,23 +1529,7 @@ export default function ProjectEditor() {
                   }}
                   onFocus={(e) => e.target.select()}
                   error={!!validationErrors.maxHeight}
-                  helperText={validationErrors.maxHeight || "建物の最高高さ（任意）"}
-                  margin="normal"
-                />
-                <TextField
-                  fullWidth
-                  label="基礎高さ (mm)"
-                  type="number"
-                  value={currentProject.buildingInfo.foundationHeight?.toString() ?? ''}
-                  onChange={(e) =>
-                    debouncedUpdateProject(currentProject.id, {
-                      buildingInfo: { 
-                        ...currentProject.buildingInfo, 
-                        foundationHeight: Number(e.target.value) || 0
-                      },
-                    })
-                  }
-                  onFocus={(e) => e.target.select()}
+                  helperText={validationErrors.maxHeight || "建物の最高高さ"}
                   margin="normal"
                 />
               </Grid>
@@ -1564,200 +1776,238 @@ export default function ProjectEditor() {
                 </Grid>
               </AccordionDetails>
             </Accordion>
+              </Box>
+
+              {/* 右側：設計概要表プレビュー */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '35%', xl: '40%' },
+                p: { xs: 2, md: 3 },
+                overflow: 'auto',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <Paper sx={{ 
+                  p: 3,
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.08)}`,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      mb: 3, 
+                      fontWeight: 700,
+                      color: 'primary.main',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      fontSize: '1.1rem'
+                    }}
+                  >
+                    設計概要プレビュー
+                  </Typography>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <DesignSummaryCompact 
+                      project={currentProject} 
+                      onProjectUpdate={(updates) => debouncedUpdateProject(currentProject.id, updates)}
+                    />
+                  </Box>
+                </Paper>
+              </Box>
+            </Box>
             
             {/* ナビゲーションボタン */}
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexDirection: isMobile ? 'column' : 'row',
-              gap: isMobile ? 2 : 0,
-              mt: 4,
-              pt: 3,
-              borderTop: `1px solid ${theme.palette.grey[200]}`,
+            <Paper sx={{ 
+              p: 3,
+              mt: 2,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, #ffffff 0%, #fafbff 100%)',
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+              boxShadow: `0 2px 12px ${alpha(theme.palette.primary.main, 0.06)}`,
             }}>
-              <Button
-                disabled={activeStep === 0}
-                onClick={handleBack}
-                sx={{ 
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 500,
-                  px: 3,
-                  order: isMobile ? 2 : 1,
-                }}
-              >
-                戻る
-              </Button>
               <Box sx={{ 
                 display: 'flex', 
-                gap: 2,
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 flexDirection: isMobile ? 'column' : 'row',
-                order: isMobile ? 1 : 2,
+                gap: isMobile ? 2 : 0,
               }}>
-                <Button 
-                  onClick={handleSave} 
-                  variant="outlined"
+                <Button
+                  disabled={activeStep === 0}
+                  onClick={handleBack}
                   sx={{ 
                     borderRadius: 2,
                     textTransform: 'none',
                     fontWeight: 500,
                     px: 3,
+                    order: isMobile ? 2 : 1,
                   }}
                 >
-                  保存
+                  戻る
                 </Button>
-                {activeStep === steps.length - 1 ? (
-                  <Button
-                    variant="contained"
-                    onClick={() => navigate(`/project/${currentProject.id}/simulation`)}
-                    sx={{ 
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      px: 4,
-                    }}
-                  >
-                    シミュレーションへ
-                  </Button>
-                ) : (
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 2,
+                  flexDirection: isMobile ? 'column' : 'row',
+                  order: isMobile ? 1 : 2,
+                }}>
                   <Button 
-                    variant="contained" 
-                    onClick={handleNext}
+                    onClick={handleSave} 
+                    variant="outlined"
                     sx={{ 
                       borderRadius: 2,
                       textTransform: 'none',
-                      fontWeight: 600,
-                      px: 4,
+                      fontWeight: 500,
+                      px: 3,
                     }}
                   >
-                    次へ
+                    保存
                   </Button>
-                )}
+                  {activeStep === steps.length - 1 ? (
+                    <Button
+                      variant="contained"
+                      onClick={async () => {
+                      // 保存してからシミュレーションへ遷移
+                      try {
+                        await handleSave()
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      } catch (error) {
+                        console.error('保存エラー:', error)
+                        // エラーが発生してもシミュレーションには遷移する
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      }
+                    }}
+                      sx={{ 
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        px: 4,
+                      }}
+                    >
+                      シミュレーションへ
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="contained" 
+                      onClick={handleNext}
+                      sx={{ 
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        px: 4,
+                      }}
+                    >
+                      次へ
+                    </Button>
+                  )}
+                </Box>
               </Box>
-            </Box>
-          </Paper>
-        )
-
-      case 2:
-        return (
-          <Paper sx={{ p: 4, borderRadius: 2 }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
-              面積・規制情報
-            </Typography>
-            <Grid container spacing={4}>
-              <Grid size={{ xs: 12 }}>
-                <ZoningInfoDisplay
-                  zoningState={regulationState.zoningInfo}
-                  siteInfo={currentProject.siteInfo}
-                  onRefresh={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['zoning'] })}
-                  onSiteInfoChange={(updates) => {
-                    debouncedUpdateProject(currentProject.id, {
-                      siteInfo: { ...currentProject.siteInfo, ...updates }
-                    })
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <Divider sx={{ my: 3 }} />
-                <RegulationInfoDisplay
-                  searchState={regulationState}
-                  administrativeGuidance={currentProject.siteInfo.administrativeGuidance}
-                  onRefreshShadow={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['shadow'] })}
-                  onRefreshAdminGuidance={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['administrative'] })}
-                  onAdminGuidanceChange={(itemId, checked) => {
-                    const updatedGuidance = {
-                      ...currentProject.siteInfo.administrativeGuidance,
-                      [itemId]: checked,
-                    };
-                    debouncedUpdateProject(currentProject.id, {
-                      siteInfo: {
-                        ...currentProject.siteInfo,
-                        administrativeGuidance: updatedGuidance,
-                        administrativeGuidanceDetails: regulationState.administrativeGuidance.data || currentProject.siteInfo.administrativeGuidanceDetails || [],
-                      },
-                    });
-                  }}
-                />
-              </Grid>
-            </Grid>
-
-            
-            {/* ナビゲーションボタン */}
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexDirection: isMobile ? 'column' : 'row',
-              gap: isMobile ? 2 : 0,
-              mt: 4,
-              pt: 3,
-              borderTop: `1px solid ${theme.palette.grey[200]}`,
-            }}>
-              <Button
-                disabled={activeStep === 0}
-                onClick={handleBack}
-                sx={{ 
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 500,
-                  px: 3,
-                  order: isMobile ? 2 : 1,
-                }}
-              >
-                戻る
-              </Button>
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 2,
-                flexDirection: isMobile ? 'column' : 'row',
-                order: isMobile ? 1 : 2,
-              }}>
-                <Button 
-                  onClick={handleSave} 
-                  variant="outlined"
-                  sx={{ 
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontWeight: 500,
-                    px: 3,
-                  }}
-                >
-                  保存
-                </Button>
-                {activeStep === steps.length - 1 ? (
-                  <Button
-                    variant="contained"
-                    onClick={() => navigate(`/project/${currentProject.id}/simulation`)}
-                    sx={{ 
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      px: 4,
-                    }}
-                  >
-                    シミュレーションへ
-                  </Button>
-                ) : (
-                  <Button 
-                    variant="contained" 
-                    onClick={handleNext}
-                    sx={{ 
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      px: 4,
-                    }}
-                  >
-                    次へ
-                  </Button>
-                )}
-              </Box>
-            </Box>
-          </Paper>
+            </Paper>
+          </Box>
         )
 
       case 3:
+        return (
+          <Paper sx={{ p: 4, borderRadius: 2 }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+              設計概要
+            </Typography>
+            
+            <DesignSummaryCompact 
+              project={currentProject} 
+              onProjectUpdate={(updates) => debouncedUpdateProject(currentProject.id, updates)}
+              editable={false}
+            />
+            
+            {/* ナビゲーションボタン */}
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: isMobile ? 2 : 0,
+              mt: 4,
+              pt: 3,
+              borderTop: `1px solid ${theme.palette.grey[200]}`,
+            }}>
+              <Button
+                disabled={activeStep === 0}
+                onClick={handleBack}
+                sx={{ 
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  order: isMobile ? 2 : 1,
+                }}
+              >
+                戻る
+              </Button>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 2,
+                flexDirection: isMobile ? 'column' : 'row',
+                order: isMobile ? 1 : 2,
+              }}>
+                <Button 
+                  onClick={handleSave} 
+                  variant="outlined"
+                  sx={{ 
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    px: 3,
+                  }}
+                >
+                  保存
+                </Button>
+                {activeStep === steps.length - 1 ? (
+                  <Button
+                    variant="contained"
+                    onClick={async () => {
+                      // 保存してからシミュレーションへ遷移
+                      try {
+                        await handleSave()
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      } catch (error) {
+                        console.error('保存エラー:', error)
+                        // エラーが発生してもシミュレーションには遷移する
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      }
+                    }}
+                    sx={{ 
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 4,
+                    }}
+                  >
+                    シミュレーションへ
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="contained" 
+                    onClick={handleNext}
+                    sx={{ 
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 4,
+                    }}
+                  >
+                    次へ
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          </Paper>
+        )
+
+      case 4:
         
         if (!currentProject) {
           return (
@@ -1976,7 +2226,17 @@ export default function ProjectEditor() {
                 {activeStep === steps.length - 1 ? (
                   <Button
                     variant="contained"
-                    onClick={() => navigate(`/project/${currentProject.id}/simulation`)}
+                    onClick={async () => {
+                      // 保存してからシミュレーションへ遷移
+                      try {
+                        await handleSave()
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      } catch (error) {
+                        console.error('保存エラー:', error)
+                        // エラーが発生してもシミュレーションには遷移する
+                        navigate(`/project/${currentProject.id}/simulation`)
+                      }
+                    }}
                     sx={{ 
                       borderRadius: 2,
                       textTransform: 'none',

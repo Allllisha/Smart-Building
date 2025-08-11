@@ -9,16 +9,14 @@ interface ProjectData {
     floors: number;
     units?: number;
     maxHeight: number;
-    foundationHeight: number;
     buildingArea: number;
     totalFloorArea: number;
     effectiveArea: number;
     constructionArea: number;
   };
   siteInfo: {
-    landType: string;
     siteArea: number;
-    effectiveSiteArea: number;
+    frontRoadWidth: number;
     zoningType: string;
     buildingCoverage: number;
     floorAreaRatio: number;
@@ -249,8 +247,9 @@ JSON回答形式：
         "unitPrice": 数値,
         "structureCoefficients": {
           "壁式鉄筋コンクリート造": 数値,
-          "鉄骨造": 数値,
-          "木造軸組工法": 数値
+          "鉄骨鉄筋コンクリート造": 数値,
+          "鉄筋コンクリート造": 数値,
+          "木造": 数値
         }
       },
       // 他の項目
@@ -821,8 +820,8 @@ JSON回答：
           unitPrice: 120000,
           structureCoefficients: {
             "壁式鉄筋コンクリート造": 1.3,
-            "鉄骨造": 1.1,
-            "木造軸組工法": 0.7,
+            "鉄骨鉄筋コンクリート造": 1.1,
+            "木造": 0.7,
             "その他": 1.0
           }
         },
@@ -902,8 +901,8 @@ JSON回答：
           unitPrice: Math.round(100000 * usageMultiplier * scaleMultiplier),
           structureCoefficients: {
             "壁式鉄筋コンクリート造": 1.4,
-            "鉄骨造": 1.1,
-            "木造軸組工法": 0.6,
+            "鉄骨鉄筋コンクリート造": 1.1,
+            "木造": 0.6,
             "その他": 1.0
           }
         },
@@ -947,9 +946,9 @@ JSON回答：
     let structuralComplexity = 1.0;
     if (buildingInfo.structure === '壁式鉄筋コンクリート造') {
       structuralComplexity = 1.3;
-    } else if (buildingInfo.structure === '鉄骨造') {
+    } else if (buildingInfo.structure === '鉄骨鉄筋コンクリート造') {
       structuralComplexity = 1.1;
-    } else if (buildingInfo.structure === '木造軸組工法') {
+    } else if (buildingInfo.structure === '木造') {
       structuralComplexity = 0.9;
     }
     
@@ -1137,7 +1136,7 @@ JSON回答：
     let estimatedCost = 0;
     
     // 耐震対策
-    if (buildingInfo.floors >= 3 || buildingInfo.structure === '鉄骨造') {
+    if (buildingInfo.floors >= 3 || buildingInfo.structure === '鉄骨鉄筋コンクリート造') {
       recommendedMeasures.push('耐震補強');
       estimatedCost += buildingInfo.totalFloorArea * 8000;
     }
@@ -1187,8 +1186,8 @@ JSON回答：
   private getStructureMultiplier(structure: string): number {
     switch (structure) {
       case '壁式鉄筋コンクリート造': return 1.3;
-      case '鉄骨造': return 1.1;
-      case '木造軸組工法': return 0.8;
+      case '鉄骨鉄筋コンクリート造': return 1.1;
+      case '木造': return 0.8;
       default: return 1.0;
     }
   }
@@ -1227,8 +1226,8 @@ JSON回答：
   private getStructureEfficiency(structure: string): number {
     switch (structure) {
       case '壁式鉄筋コンクリート造': return 0.8; // 断熱性が高い
-      case '鉄骨造': return 0.9;
-      case '木造軸組工法': return 1.1; // 断熱性が低い
+      case '鉄骨鉄筋コンクリート造': return 0.9;
+      case '木造': return 1.1; // 断熱性が低い
       default: return 1.0;
     }
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -11,19 +11,16 @@ import {
   Box,
   Tabs,
   Tab,
-  Paper,
   Stack,
   IconButton,
   Tooltip,
   InputAdornment,
-  Divider,
   Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
 } from '@mui/material'
 import {
-  Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
   RestartAlt as RestartIcon,
@@ -47,9 +44,10 @@ export interface UnitPrices {
   
   // 構造係数
   structureCoefficients: {
+    '鉄骨鉄筋コンクリート造': number
+    '鉄筋コンクリート造': number
     '壁式鉄筋コンクリート造': number
-    '木造軸組工法': number
-    '鉄骨造': number
+    '木造': number
     'その他': number
   }
   
@@ -118,9 +116,10 @@ export const defaultUnitPrices: UnitPrices = {
   design: 50000,
   
   structureCoefficients: {
-    '壁式鉄筋コンクリート造': 1.2,
-    '木造軸組工法': 0.8,
-    '鉄骨造': 1.0,
+    '鉄骨鉄筋コンクリート造': 1.3,
+    '鉄筋コンクリート造': 1.2,
+    '壁式鉄筋コンクリート造': 1.15,
+    '木造': 0.8,
     'その他': 1.0,
   },
   
@@ -239,7 +238,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
         <Box sx={{ mt: 3 }}>
           {activeTab === 0 && (
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography variant="subtitle1" gutterBottom>基本工事単価（円/㎡）</Typography>
               </Grid>
               {Object.entries({
@@ -254,7 +253,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                 temporary: '仮設工事',
                 design: '設計・諸経費',
               }).map(([key, label]) => (
-                <Grid item xs={12} sm={6} md={4} key={key}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                   <TextField
                     fullWidth
                     label={label}
@@ -286,7 +285,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                       rcWork: 'RC工事',
                       rustPrevention: '鉄筋防錆工事',
                     }).map(([key, label]) => (
-                      <Grid item xs={12} sm={6} md={4} key={key}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                         <TextField
                           fullWidth
                           label={label}
@@ -317,7 +316,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                       roofWaterproofing: '屋根防水工事',
                       metalWork: '金属工事',
                     }).map(([key, label]) => (
-                      <Grid item xs={12} sm={6} md={4} key={key}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                         <TextField
                           fullWidth
                           label={label}
@@ -348,7 +347,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                       securityDisaster: '防犯・防災設備',
                       otherElectrical: 'その他電気設備',
                     }).map(([key, label]) => (
-                      <Grid item xs={12} sm={6} md={4} key={key}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                         <TextField
                           fullWidth
                           label={label}
@@ -369,11 +368,11 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
           
           {activeTab === 2 && (
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography variant="subtitle1" gutterBottom>構造別係数</Typography>
               </Grid>
               {Object.entries(editedPrices.structureCoefficients).map(([key, value]) => (
-                <Grid item xs={12} sm={6} md={3} key={key}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }} key={key}>
                   <TextField
                     fullWidth
                     label={key}
@@ -385,10 +384,10 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                 </Grid>
               ))}
               
-              <Grid item xs={12} sx={{ mt: 2 }}>
+              <Grid size={12} sx={{ mt: 2 }}>
                 <Typography variant="subtitle1" gutterBottom>その他係数</Typography>
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="階数係数（杭工事用）"
@@ -398,7 +397,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   inputProps={{ step: 0.1 }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="高層階耐火被覆係数"
@@ -413,7 +412,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
           
           {activeTab === 3 && (
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="年間エネルギーコスト"
@@ -425,7 +424,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="暖房費率"
@@ -436,7 +435,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   helperText="年間エネルギーコストに対する比率"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="冷房費率"
@@ -447,7 +446,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   helperText="年間エネルギーコストに対する比率"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="太陽光発電効果"
@@ -459,7 +458,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="投資回収期間"
@@ -476,7 +475,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
           
           {activeTab === 4 && (
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="年間日照時間"
@@ -488,7 +487,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="CO2排出量"
@@ -500,7 +499,7 @@ export default function UnitPriceEditor({ open, onClose, unitPrices, onSave }: U
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <TextField
                   fullWidth
                   label="災害対策費"

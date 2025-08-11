@@ -13,14 +13,11 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Divider,
 } from '@mui/material'
 import { 
-  Home as HomeIcon,
   Architecture as ArchitectureIcon,
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  Add as AddIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'

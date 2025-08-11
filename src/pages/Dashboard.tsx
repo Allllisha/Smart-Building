@@ -5,7 +5,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardActions,
   Typography,
   Button,
   Box,
@@ -33,22 +32,15 @@ import {
   Delete as DeleteIcon, 
   MoreVert as MoreVertIcon,
   LocationOn as LocationIcon,
-  Business as BusinessIcon,
   CalendarToday as CalendarIcon,
   Architecture as ArchitectureIcon,
-  AutoAwesome as SparkleIcon,
-  TrendingUp as TrendingUpIcon,
-  Insights as InsightsIcon,
   GridView as GridIcon,
   Home as HomeIcon,
   Apartment as ApartmentIcon,
   Domain as DomainIcon,
-  ViewInAr as View3DIcon,
-  Assessment as AssessmentIcon,
-  Engineering as EngineeringIcon,
+  ViewInAr as View3DIcon
 } from '@mui/icons-material'
 import { useProjectStore } from '@/store/projectStore'
-import { createNewProjectFromSeed } from '@/utils/seedDataLoader'
 import { Project } from '@/types/project'
 import { projectApi } from '@/api/projectApi'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
@@ -58,7 +50,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const { projects, addProject, deleteProject, setProjects, setLoading, setError } = useProjectStore()
+  const { projects, deleteProject, setProjects, setLoading, setError } = useProjectStore()
   const [openDialog, setOpenDialog] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -100,18 +92,16 @@ export default function Dashboard() {
           },
           buildingInfo: {
             usage: '共同住宅' as const,
-            structure: '壁式鉄筋コンクリート造' as const,
+            structure: '鉄筋コンクリート造' as const,
             floors: 1,
             maxHeight: null,
-            foundationHeight: null,
             buildingArea: null,
             effectiveArea: null,
             constructionArea: null,
           },
           siteInfo: {
-            landType: '',
             siteArea: null,
-            effectiveSiteArea: null,
+            frontRoadWidth: null,
             zoningType: '',
             heightDistrict: '',
             administrativeGuidance: {
@@ -356,7 +346,7 @@ export default function Dashboard() {
         ) : (
           <Grid container spacing={{ xs: 3, md: 4 }}>
             {projects.map((project) => (
-              <Grid item xs={12} md={6} key={project.id}>
+              <Grid size={{ xs: 12, md: 6 }} key={project.id}>
                 <Card sx={{
                   height: '100%',
                   display: 'flex',
@@ -424,7 +414,7 @@ export default function Dashboard() {
                           {project.buildingInfo.usage === '専用住宅' && <HomeIcon sx={{ fontSize: 64, color: theme.palette.grey[400] }} />}
                           {(project.buildingInfo.usage === '商業施設' || project.buildingInfo.usage === 'オフィス') && 
                             <DomainIcon sx={{ fontSize: 64, color: theme.palette.grey[400] }} />}
-                          {!['共同住宅', '専用住宅', '商業施設', 'オフィス'].includes(project.buildingInfo.usage) && 
+                          {project.buildingInfo.usage && !['共同住宅', '専用住宅', '商業施設', 'オフィス'].includes(project.buildingInfo.usage) && 
                             <ArchitectureIcon sx={{ fontSize: 64, color: theme.palette.grey[400] }} />}
                         </>
                       )}

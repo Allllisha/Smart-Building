@@ -88,18 +88,26 @@ class ShadowRegulationCheckService {
         siteArea,
         buildingCoverage,
         floorAreaRatio,
-        roadWidth: project.siteInfo.roadWidth,
+        roadWidth: project.siteInfo.frontRoadWidth,
         buildable: buildabilityResult.isBuildable,
-        rawSiteInfo: project.siteInfo
+        rawSiteInfo: project.siteInfo,
+        savedShadowRegulation: project.siteInfo.shadowRegulation,
+        calculatedRegulation: regulation
       })
+
+      // プロジェクトに保存された日影規制値を優先的に使用
+      const shadowRegulationValues = project.siteInfo.shadowRegulation || {};
+      const fiveToTenMeters = shadowRegulationValues.allowedShadowTime5to10m ?? regulation.restrictions.range5to10m;
+      const overTenMeters = shadowRegulationValues.allowedShadowTimeOver10m ?? regulation.restrictions.rangeOver10m;
+      const measurementHeight = shadowRegulationValues.measurementHeight ?? regulation.measurementHeight;
 
       return {
         overallStatus: buildabilityResult.isBuildable ? 'OK' : 'NG',
         summary: buildabilityResult.summary,
         regulations: {
-          fiveToTenMeters: regulation.restrictions.range5to10m,
-          overTenMeters: regulation.restrictions.rangeOver10m,
-          measurementHeight: regulation.measurementHeight
+          fiveToTenMeters: fiveToTenMeters,
+          overTenMeters: overTenMeters,
+          measurementHeight: measurementHeight
         },
         checkItems: [
           {
@@ -128,19 +136,33 @@ class ShadowRegulationCheckService {
           },
           {
             name: '前面道路幅',
-            description: project.siteInfo.roadWidth ? 
-              (project.siteInfo.roadWidth >= 4 ? `${project.siteInfo.roadWidth}m（適正）` : `${project.siteInfo.roadWidth}m（狭い）`) :
+            description: project.siteInfo.frontRoadWidth ? 
+              (project.siteInfo.frontRoadWidth >= 4 ? `${project.siteInfo.frontRoadWidth}m（適正）` : `${project.siteInfo.frontRoadWidth}m（狭い）`) :
               '未設定',
-            status: project.siteInfo.roadWidth ? 
-              (project.siteInfo.roadWidth >= 4 ? 'OK' : 'WARNING') : 
+            status: project.siteInfo.frontRoadWidth ? 
+              (project.siteInfo.frontRoadWidth >= 4 ? 'OK' : 'WARNING') : 
               'NG',
-            value: project.siteInfo.roadWidth ? `${project.siteInfo.roadWidth}m` : '未設定'
+            value: project.siteInfo.frontRoadWidth ? `${project.siteInfo.frontRoadWidth}m` : '未設定'
+          },
+          {
+            name: '高さ制限',
+            description: project.siteInfo.heightLimit ? 
+              `${project.siteInfo.heightLimit}m（${project.siteInfo.heightDistrict || '高度地区指定なし'}）` : 
+              '高さ制限情報が設定されていません',
+            status: project.siteInfo.heightLimit ? 'OK' : 'WARNING',
+            value: project.siteInfo.heightLimit ? `${project.siteInfo.heightLimit}m` : '未設定'
           },
           {
             name: '日影規制',
-            description: `5-10m範囲: ${regulation.restrictions.range5to10m}時間, 10m超: ${regulation.restrictions.rangeOver10m}時間`,
-            status: regulation.restrictions.range5to10m >= 3 && regulation.restrictions.rangeOver10m >= 2 ? 'OK' : 'WARNING',
-            value: `${regulation.restrictions.range5to10m}h/${regulation.restrictions.rangeOver10m}h`
+            description: this.getShadowRegulationDescription({
+              ...regulation,
+              restrictions: {
+                range5to10m: fiveToTenMeters,
+                rangeOver10m: overTenMeters
+              }
+            }, project),
+            status: this.getShadowRegulationStatus(regulation),
+            value: `${fiveToTenMeters}h/${overTenMeters}h`
           }
         ]
       }
@@ -233,11 +255,10 @@ class ShadowRegulationCheckService {
     project?: Project
   ): Promise<ZoneRegulation> {
     // プロジェクトに保存された規制情報を優先的に使用
-    if (project?.siteInfo?.shadowRegulation?.targetArea && project?.siteInfo?.zoningType) {
-      console.log('📋 保存された規制情報を使用')
+    if (project?.siteInfo?.shadowRegulation && project.siteInfo.shadowRegulation.allowedShadowTime5to10m !== undefined) {
+      console.log('📋 保存された日影規制情報を使用:', project.siteInfo.shadowRegulation)
       
-      // 保存された用途地域を使用
-      const zoneType = project.siteInfo.zoningType
+      const zoneType = project.siteInfo.zoningType || '第一種中高層住居専用地域'
       const savedRegulation = project.siteInfo.shadowRegulation
       
       // 保存された規制情報から ZoneRegulation を構築
@@ -247,8 +268,8 @@ class ShadowRegulationCheckService {
         targetFloors: this.getTargetFloorsForZone(zoneType),
         measurementHeight: savedRegulation.measurementHeight || 4,
         restrictions: {
-          range5to10m: savedRegulation.allowedShadowTime5to10m || 4,
-          rangeOver10m: savedRegulation.allowedShadowTimeOver10m || 2.5
+          range5to10m: savedRegulation.allowedShadowTime5to10m,
+          rangeOver10m: savedRegulation.allowedShadowTimeOver10m
         },
         timeRange: { start: 8, end: 16 } // 標準的な測定時間帯
       }
@@ -266,19 +287,14 @@ class ShadowRegulationCheckService {
       return regulation
     }
 
-    // 保存されていない場合は従来の推定ロジックを使用
-    console.log('⚠️ 保存された規制情報がないため、推定値を使用')
-    const cacheKey = `${prefecture}_${city}_${ward}`
+    // 保存されていない場合はデフォルト値を使用
+    console.log('⚠️ 保存された規制情報がないため、デフォルト値（第一種低層住居専用地域）を使用')
     
-    if (this.regulationCache.has(cacheKey)) {
-      return this.regulationCache.get(cacheKey)!
-    }
-
-    // 用途地域を推定（実際は都市計画図等から取得）
-    const zoneType = this.estimateZoneType(address, prefecture, city, ward)
+    // プロジェクトに用途地域が設定されている場合はそれを使用、なければデフォルト
+    const zoneType = project?.siteInfo?.zoningType || '第一種低層住居専用地域'
+    console.log('🏠 使用する用途地域:', zoneType)
+    
     const regulation = this.getRegulationByZone(zoneType)
-    
-    this.regulationCache.set(cacheKey, regulation)
     return regulation
   }
 
@@ -571,24 +587,39 @@ class ShadowRegulationCheckService {
     })
 
     // 必要な情報が不足している場合
-    if (!siteArea) {
+    if (!siteArea || siteArea <= 0) {
       return {
         isBuildable: false,
         summary: '敷地面積が設定されていません。'
       }
     }
     
-    if (!buildingCoverage) {
+    if (buildingCoverage === null || buildingCoverage === undefined || buildingCoverage === '') {
       return {
         isBuildable: false,
         summary: '建蔽率が設定されていません。'
       }
     }
     
-    if (!floorAreaRatio) {
+    if (floorAreaRatio === null || floorAreaRatio === undefined || floorAreaRatio === '') {
       return {
         isBuildable: false,
         summary: '容積率が設定されていません。'
+      }
+    }
+
+    // 建蔽率・容積率が0%の場合
+    if (buildingCoverage === 0) {
+      return {
+        isBuildable: false,
+        summary: '建蔽率が0%のため建築できません。'
+      }
+    }
+    
+    if (floorAreaRatio === 0) {
+      return {
+        isBuildable: false,
+        summary: '容積率が0%のため建築できません。'
       }
     }
 
@@ -601,14 +632,17 @@ class ShadowRegulationCheckService {
     }
     
     // 前面道路幅による容積率制限チェック
-    if (project.siteInfo.roadWidth && project.siteInfo.roadWidth < 4) {
+    if (project.siteInfo.frontRoadWidth && project.siteInfo.frontRoadWidth < 4) {
       constraints.push('前面道路幅が4m未満のため、建築基準法による制限があります')
     }
     
-    // 日影規制による高さ制限チェック
-    if (regulation.restrictions.range5to10m <= 2 && regulation.restrictions.rangeOver10m <= 1.5) {
-      constraints.push('厳しい日影規制のため、建築可能高さが大幅に制限される可能性があります')
+    // 高さ制限のチェック
+    if (!project.siteInfo.heightLimit) {
+      constraints.push('高さ制限情報が設定されていません')
     }
+    
+    // 日影規制は用途地域と建物の高さ・階数によって適用されるため、ここでは情報提供のみ
+    // 実際の判定は建物設計後の詳細チェックで行う
 
     // 制約がある場合
     if (constraints.length > 0) {
@@ -623,6 +657,42 @@ class ShadowRegulationCheckService {
       isBuildable: true,
       summary: `${regulation.zone}において建築可能です。建蔽率${buildingCoverage}%、容積率${floorAreaRatio}%の範囲で建築計画を進められます。`
     }
+  }
+
+  /**
+   * 日影規制の説明文を生成
+   */
+  private getShadowRegulationDescription(regulation: ZoneRegulation, project?: Project): string {
+    const { restrictions } = regulation;
+    
+    // プロジェクトに保存された規制対象建築物の情報を使用
+    if (project?.siteInfo?.shadowRegulation?.targetBuilding) {
+      const targetBuilding = project.siteInfo.shadowRegulation.targetBuilding;
+      return `${targetBuilding}: 5-10m範囲 ${restrictions.range5to10m}時間以内, 10m超範囲 ${restrictions.rangeOver10m}時間以内`;
+    }
+    
+    // 保存データがない場合は規制値のみ表示
+    return `5-10m範囲 ${restrictions.range5to10m}時間以内, 10m超範囲 ${restrictions.rangeOver10m}時間以内`;
+  }
+
+  /**
+   * 日影規制のステータスを判定
+   */
+  private getShadowRegulationStatus(regulation: ZoneRegulation): 'OK' | 'WARNING' | 'NG' | 'INFO' {
+    const { zone } = regulation;
+    
+    // 商業地域・工業地域は日影規制対象外
+    if (zone.includes('商業地域') || zone.includes('工業')) {
+      return 'OK';
+    }
+    
+    // 低層住居専用地域は規制が厳しい
+    if (zone.includes('低層住居専用')) {
+      return 'WARNING';
+    }
+    
+    // その他の地域は情報提供
+    return 'INFO';
   }
 
   /**

@@ -11,23 +11,21 @@ const createProjectSchema = z.object({
     address: z.string().optional(),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
-  }),
+  }).optional(),
   buildingInfo: z.object({
     usage: z.enum(['共同住宅', '専用住宅', '商業施設', 'オフィス', 'その他']),
-    structure: z.enum(['壁式鉄筋コンクリート造', '木造軸組工法', '鉄骨造', 'その他']),
+    structure: z.enum(['鉄骨鉄筋コンクリート造', '鉄筋コンクリート造', '壁式鉄筋コンクリート造', '木造', 'その他']),
     floors: z.number().int().positive(),
     units: z.number().int().positive().optional(),
     totalFloorArea: z.number().positive().optional(),
     maxHeight: z.number().positive().nullable().optional(),
-    foundationHeight: z.number().positive().nullable().optional(),
     buildingArea: z.number().min(0).nullable(),
     effectiveArea: z.number().min(0).nullable(),
     constructionArea: z.number().min(0).nullable(),
   }),
   siteInfo: z.object({
-    landType: z.string().optional(),
     siteArea: z.number().min(0).nullable(),
-    effectiveSiteArea: z.number().min(0).nullable(),
+    frontRoadWidth: z.number().min(0).nullable(),
     zoningType: z.string().optional(),
     buildingCoverage: z.number().min(0).max(100).nullable().optional(),
     floorAreaRatio: z.number().min(0).max(1000).nullable().optional(),
@@ -47,6 +45,7 @@ const createProjectSchema = z.object({
   schedule: z.object({
     startDate: z.string().transform((str) => str ? new Date(str) : null).optional(),
     completionDate: z.string().transform((str) => str ? new Date(str) : null).optional(),
+    duration: z.number().optional(),
   }).optional(),
 })
 
@@ -57,10 +56,12 @@ export class ProjectController {
       
       // 各プロジェクトの関連データを取得
       const formattedProjects = await Promise.all(projects.map(async (p) => {
-        const [unitTypes, floorAreaDetails, parkingPlan] = await Promise.all([
+        const [unitTypes, floorAreaDetails, parkingPlan, shadowRegulation, administrativeGuidanceDetails] = await Promise.all([
           ProjectModel.findUnitTypes(p.id),
           ProjectModel.findFloorAreaDetails(p.id),
-          ProjectModel.findParkingPlan(p.id)
+          ProjectModel.findParkingPlan(p.id),
+          ProjectModel.findShadowRegulation(p.id),
+          ProjectModel.findAdministrativeGuidanceDetails(p.id)
         ])
 
         return {
@@ -80,7 +81,6 @@ export class ProjectController {
           units: p.building_units ? Number(p.building_units) : undefined,
           totalFloorArea: p.building_total_floor_area ? Number(p.building_total_floor_area) : undefined,
           maxHeight: p.building_max_height ? Number(p.building_max_height) : 0,
-          foundationHeight: p.building_foundation_height ? Number(p.building_foundation_height) : 0,
           buildingArea: p.building_area ? Number(p.building_area) : null,
           effectiveArea: p.building_effective_area ? Number(p.building_effective_area) : null,
           constructionArea: p.building_construction_area ? Number(p.building_construction_area) : null,
@@ -100,9 +100,8 @@ export class ProjectController {
           })),
         },
         siteInfo: {
-          landType: p.site_land_type || '',
           siteArea: p.site_area ? Number(p.site_area) : null,
-          effectiveSiteArea: p.site_effective_area ? Number(p.site_effective_area) : null,
+          frontRoadWidth: p.front_road_width ? Number(p.front_road_width) : null,
           zoningType: p.site_zoning_type || '',
           buildingCoverage: p.site_building_coverage ? Number(p.site_building_coverage) : 0,
           floorAreaRatio: p.site_floor_area_ratio ? Number(p.site_floor_area_ratio) : 0,
@@ -118,10 +117,26 @@ export class ProjectController {
             midHighRiseOrdinance: p.admin_mid_high_rise_ordinance,
             embankmentRegulation: p.admin_embankment_regulation,
           },
+          shadowRegulation: shadowRegulation ? {
+            targetArea: shadowRegulation.target_area || '',
+            targetBuilding: shadowRegulation.target_building || '',
+            measurementHeight: shadowRegulation.measurement_height ? Number(shadowRegulation.measurement_height) : 0,
+            measurementTime: shadowRegulation.measurement_time || '',
+            allowedShadowTime5to10m: shadowRegulation.allowed_shadow_time_5to10m ? Number(shadowRegulation.allowed_shadow_time_5to10m) : 0,
+            allowedShadowTimeOver10m: shadowRegulation.allowed_shadow_time_over10m ? Number(shadowRegulation.allowed_shadow_time_over10m) : 0,
+          } : null,
+          administrativeGuidanceDetails: administrativeGuidanceDetails.map(g => ({
+            id: g.guidance_id,
+            name: g.name,
+            description: g.description,
+            isRequired: g.is_required,
+            applicableConditions: g.applicable_conditions,
+          })),
         },
         schedule: {
           startDate: p.construction_start_date,
           completionDate: p.construction_completion_date,
+          duration: p.construction_duration,
         },
         parkingPlan: parkingPlan ? {
           parkingSpaces: Number(parkingPlan.parking_spaces),
@@ -151,10 +166,12 @@ export class ProjectController {
       }
 
       // 関連データを取得
-      const [unitTypes, floorAreaDetails, parkingPlan] = await Promise.all([
+      const [unitTypes, floorAreaDetails, parkingPlan, shadowRegulation, administrativeGuidanceDetails] = await Promise.all([
         ProjectModel.findUnitTypes(id),
         ProjectModel.findFloorAreaDetails(id),
-        ProjectModel.findParkingPlan(id)
+        ProjectModel.findParkingPlan(id),
+        ProjectModel.findShadowRegulation(id),
+        ProjectModel.findAdministrativeGuidanceDetails(id)
       ])
 
       // DB形式からAPI形式に変換
@@ -182,7 +199,6 @@ export class ProjectController {
           units: project.building_units ? Number(project.building_units) : undefined,
           totalFloorArea: project.building_total_floor_area ? Number(project.building_total_floor_area) : undefined,
           maxHeight: project.building_max_height ? Number(project.building_max_height) : 0,
-          foundationHeight: project.building_foundation_height ? Number(project.building_foundation_height) : 0,
           buildingArea: project.building_area ? Number(project.building_area) : null,  
           effectiveArea: project.building_effective_area ? Number(project.building_effective_area) : null,
           constructionArea: project.building_construction_area ? Number(project.building_construction_area) : null,
@@ -202,9 +218,8 @@ export class ProjectController {
           })),
         },
         siteInfo: {
-          landType: project.site_land_type || '',
           siteArea: project.site_area ? Number(project.site_area) : null,
-          effectiveSiteArea: project.site_effective_area ? Number(project.site_effective_area) : null,
+          frontRoadWidth: project.front_road_width ? Number(project.front_road_width) : null,
           zoningType: project.site_zoning_type || '',
           buildingCoverage: project.site_building_coverage ? Number(project.site_building_coverage) : 0,
           floorAreaRatio: project.site_floor_area_ratio ? Number(project.site_floor_area_ratio) : 0,
@@ -220,10 +235,26 @@ export class ProjectController {
             midHighRiseOrdinance: project.admin_mid_high_rise_ordinance,
             embankmentRegulation: project.admin_embankment_regulation,
           },
+          shadowRegulation: shadowRegulation ? {
+            targetArea: shadowRegulation.target_area || '',
+            targetBuilding: shadowRegulation.target_building || '',
+            measurementHeight: shadowRegulation.measurement_height ? Number(shadowRegulation.measurement_height) : 0,
+            measurementTime: shadowRegulation.measurement_time || '',
+            allowedShadowTime5to10m: shadowRegulation.allowed_shadow_time_5to10m ? Number(shadowRegulation.allowed_shadow_time_5to10m) : 0,
+            allowedShadowTimeOver10m: shadowRegulation.allowed_shadow_time_over10m ? Number(shadowRegulation.allowed_shadow_time_over10m) : 0,
+          } : null,
+          administrativeGuidanceDetails: administrativeGuidanceDetails.map(g => ({
+            id: g.guidance_id,
+            name: g.name,
+            description: g.description,
+            isRequired: g.is_required,
+            applicableConditions: g.applicable_conditions,
+          })),
         },
         schedule: {
           startDate: project.construction_start_date,
           completionDate: project.construction_completion_date,
+          duration: project.construction_duration,
         },
         parkingPlan: parkingPlan ? {
           parkingSpaces: Number(parkingPlan.parking_spaces),
@@ -250,22 +281,20 @@ export class ProjectController {
       const projectData = {
         name: validatedData.name,
         user_id: req.user!.id,
-        location_address: validatedData.location.address || null,
-        location_latitude: validatedData.location.latitude,
-        location_longitude: validatedData.location.longitude,
+        location_address: validatedData.location?.address || null,
+        location_latitude: validatedData.location?.latitude || null,
+        location_longitude: validatedData.location?.longitude || null,
         building_usage: validatedData.buildingInfo.usage,
         building_structure: validatedData.buildingInfo.structure,
         building_floors: validatedData.buildingInfo.floors,
         building_units: validatedData.buildingInfo.units || null,
         building_total_floor_area: validatedData.buildingInfo.totalFloorArea || null,
         building_max_height: validatedData.buildingInfo.maxHeight || null,
-        building_foundation_height: validatedData.buildingInfo.foundationHeight || null,
         building_area: validatedData.buildingInfo.buildingArea ?? undefined,
         building_effective_area: validatedData.buildingInfo.effectiveArea ?? undefined,
         building_construction_area: validatedData.buildingInfo.constructionArea ?? undefined,
-        site_land_type: validatedData.siteInfo.landType || null,
         site_area: validatedData.siteInfo.siteArea,
-        site_effective_area: validatedData.siteInfo.effectiveSiteArea,
+        front_road_width: validatedData.siteInfo.frontRoadWidth,
         site_zoning_type: validatedData.siteInfo.zoningType || null,
         site_building_coverage: validatedData.siteInfo.buildingCoverage || null,
         site_floor_area_ratio: validatedData.siteInfo.floorAreaRatio || null,
@@ -281,6 +310,7 @@ export class ProjectController {
         admin_embankment_regulation: validatedData.siteInfo.administrativeGuidance.embankmentRegulation,
         construction_start_date: validatedData.schedule?.startDate || null,
         construction_completion_date: validatedData.schedule?.completionDate || null,
+        construction_duration: validatedData.schedule?.duration || null,
       }
 
       const project = await ProjectModel.create(projectData)
@@ -329,7 +359,6 @@ export class ProjectController {
         if (b.units !== undefined) dbUpdates.building_units = b.units
         if (b.totalFloorArea !== undefined) dbUpdates.building_total_floor_area = b.totalFloorArea
         if (b.maxHeight !== undefined) dbUpdates.building_max_height = b.maxHeight
-        if (b.foundationHeight !== undefined) dbUpdates.building_foundation_height = b.foundationHeight
         if (b.buildingArea !== undefined) dbUpdates.building_area = b.buildingArea
         if (b.effectiveArea !== undefined) dbUpdates.building_effective_area = b.effectiveArea
         if (b.constructionArea !== undefined) dbUpdates.building_construction_area = b.constructionArea
@@ -337,9 +366,8 @@ export class ProjectController {
 
       if (updates.siteInfo) {
         const s = updates.siteInfo
-        if (s.landType !== undefined) dbUpdates.site_land_type = s.landType
         if (s.siteArea !== undefined) dbUpdates.site_area = s.siteArea
-        if (s.effectiveSiteArea !== undefined) dbUpdates.site_effective_area = s.effectiveSiteArea
+        if (s.frontRoadWidth !== undefined) dbUpdates.front_road_width = s.frontRoadWidth
         if (s.zoningType !== undefined) dbUpdates.site_zoning_type = s.zoningType
         if (s.buildingCoverage !== undefined) dbUpdates.site_building_coverage = s.buildingCoverage
         if (s.floorAreaRatio !== undefined) dbUpdates.site_floor_area_ratio = s.floorAreaRatio
@@ -363,12 +391,38 @@ export class ProjectController {
         const s = updates.schedule
         if (s.startDate !== undefined) dbUpdates.construction_start_date = s.startDate
         if (s.completionDate !== undefined) dbUpdates.construction_completion_date = s.completionDate
+        if (s.duration !== undefined) dbUpdates.construction_duration = s.duration
       }
 
       const updatedProject = await ProjectModel.update(id, req.user!.id, dbUpdates)
 
       if (!updatedProject) {
         throw new AppError(404, 'Project not found')
+      }
+
+      // 日影規制データの保存
+      if (updates.siteInfo?.shadowRegulation) {
+        const shadowData = updates.siteInfo.shadowRegulation
+        await ProjectModel.saveShadowRegulation(id, {
+          target_area: shadowData.targetArea,
+          target_building: shadowData.targetBuilding,
+          measurement_height: shadowData.measurementHeight,
+          measurement_time: shadowData.measurementTime,
+          allowed_shadow_time_5to10m: shadowData.allowedShadowTime5to10m,
+          allowed_shadow_time_over10m: shadowData.allowedShadowTimeOver10m,
+        })
+      }
+
+      // 行政指導詳細データの保存
+      if (updates.siteInfo?.administrativeGuidanceDetails) {
+        const guidanceList = updates.siteInfo.administrativeGuidanceDetails.map((g: any) => ({
+          guidance_id: g.id,
+          name: g.name,
+          description: g.description,
+          is_required: g.isRequired,
+          applicable_conditions: g.applicableConditions,
+        }))
+        await ProjectModel.saveAdministrativeGuidanceDetails(id, guidanceList)
       }
 
       res.json({

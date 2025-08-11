@@ -1,5 +1,4 @@
-import { createTheme } from '@mui/material/styles'
-import { Shadows } from '@mui/material/styles/shadows'
+import { createTheme, Shadows } from '@mui/material/styles'
 
 // 建築的で洗練されたカラーパレット
 const colors = {

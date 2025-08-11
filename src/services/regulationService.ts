@@ -118,7 +118,7 @@ async function analyzeRegulationWithAI(municipality: string, address: string): P
 }
 
 // Azure AI Services Bing Search Agentを使用して自治体の規制情報を取得
-async function searchMunicipalityRegulations(municipality: string, address: string, prefecture: string | null): Promise<string> {
+async function searchMunicipalityRegulations(municipality: string, _address: string, prefecture: string | null): Promise<string> {
   // 動的に検索クエリを生成（基本的な建築規制関連キーワードのみ）
   const baseKeywords = ['都市計画', '建築規制', '条例', 'site:*.go.jp OR site:*.lg.jp']
   const searchQueries = [
@@ -222,11 +222,11 @@ ${searchText}
 回答形式（JSON）:
 {
   "zoning": {
-    "zoningType": "用途地域名（例：第一種住居地域、近隣商業地域、工業地域など）",
-    "buildingCoverageRatio": 建ぺい率の数値（例：60, 80など）,
-    "floorAreaRatio": 容積率の数値（例：200, 300, 400など）,
-    "heightLimit": "高さ制限（例：10m、15m、31m、無制限など）",
-    "heightDistrict": "高度地区名（例：第一種高度地区、第二種高度地区、第三種高度地区など）"
+    "zoningType": "用途地域名",
+    "buildingCoverageRatio": 建ぺい率の数値,
+    "floorAreaRatio": 容積率の数値,
+    "heightLimit": "高さ制限",
+    "heightDistrict": "高度地区名"
   },
   "shadow": {
     "targetArea": "日影規制対象地域",

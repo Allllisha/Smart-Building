@@ -11,7 +11,22 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'smart_building_pass',
   max: parseInt(process.env.DB_POOL_MAX || '20'),
   idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
-  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000'),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '20000'), // 20秒に延長
+  ssl: process.env.NODE_ENV === 'production' 
+    ? { 
+        rejectUnauthorized: false
+      } 
+    : false,
+})
+
+// デバッグ用に接続情報をログ出力（パスワードは隠す）
+console.log('Database connection config:', {
+  host: pool.options.host,
+  port: pool.options.port,
+  database: pool.options.database,
+  user: pool.options.user,
+  ssl: pool.options.ssl,
+  connectionTimeoutMillis: pool.options.connectionTimeoutMillis,
 })
 
 export const query = async (text: string, params?: any[]) => {

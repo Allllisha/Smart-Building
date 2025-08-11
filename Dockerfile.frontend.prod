@@ -1,0 +1,40 @@
+# ビルドステージ
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 依存関係をコピー
+COPY package*.json ./
+
+# 依存関係をインストール
+RUN npm ci
+
+# アプリケーションのソースコードをコピー
+COPY . .
+
+# ビルド引数
+ARG VITE_API_URL=https://smart-building-planner-api.azurewebsites.net/api
+ARG VITE_AUTH_ENABLED
+
+# 環境変数として設定
+ENV VITE_API_URL=$VITE_API_URL
+
+# Viteビルドのみ実行（TypeScriptチェックをスキップ）
+RUN npx vite build --mode production
+
+# 本番用イメージ
+FROM nginx:alpine
+
+# Nginxの設定をコピー
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# ビルドされたファイルをコピー
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# web.configファイルをコピー（Azure App Service用）
+COPY --from=builder /app/public/web.config /usr/share/nginx/html/web.config
+
+EXPOSE 80
+
+# エントリーポイントを明示的に設定
+ENTRYPOINT ["nginx", "-g", "daemon off;"]

@@ -45,7 +45,6 @@ export interface BuildingInfo {
   units?: number // 共同住宅の場合
   totalFloorArea?: number // 延床面積
   maxHeight?: number // 最高高さ
-  foundationHeight?: number // 基礎高さ
   buildingArea: number | null // 建築面積
   effectiveArea: number | null // 容積対象面積
   constructionArea: number | null // 施工面積
@@ -65,9 +64,8 @@ export interface BuildingShape {
 }
 
 export interface SiteInfo {
-  landType: string // 地目
   siteArea: number | null // 敷地面積
-  effectiveSiteArea: number | null // 有効敷地面積
+  frontRoadWidth: number | null // 前面道路幅（m）
   zoningType: string // 用途地域
   buildingCoverage: number // 建ぺい率 (%)
   floorAreaRatio: number // 容積率 (%)
@@ -194,5 +192,5 @@ export interface ComplianceStatus {
 }
 
 export type BuildingUsage = '共同住宅' | '専用住宅' | '商業施設' | 'オフィス' | 'その他'
-export type StructureType = '壁式鉄筋コンクリート造' | '木造軸組工法' | '鉄骨造' | 'その他'
+export type StructureType = '鉄骨鉄筋コンクリート造' | '鉄筋コンクリート造' | '壁式鉄筋コンクリート造' | '木造' | 'その他'
 export type RiskLevel = 'low' | 'medium' | 'high'

@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Box } from '@mui/material'
 import { Project } from '@/types/project'
-import { solarDataService, SolarData } from '@/services/solarData.service'
+import { solarDataService } from '@/services/solarData.service'
 import { advancedSolarAnalysisService, PreciseSolarAnalysis } from '@/services/advancedSolarAnalysis.service'
 import { VolumeCheckResult } from '@/services/shadowRegulationCheck.service'
 
@@ -24,7 +24,7 @@ interface Scene3DProps {
   showTerrain?: boolean
 }
 
-export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime = new Date(), onAnalysisUpdate, onScreenshotReady, volumeCheckResult, showVolumeCheck = false, currentTime = 12, showShadowAnalysis = true, showTerrain = false }: Scene3DProps) {
+export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime = new Date(), onAnalysisUpdate, onScreenshotReady, volumeCheckResult, showVolumeCheck = false, currentTime = 12 }: Scene3DProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -37,8 +37,6 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
   const buildingRef = useRef<THREE.Mesh | null>(null)
   const shadowCasterRef = useRef<THREE.Mesh | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [solarData, setSolarData] = useState<SolarData | null>(null)
-  const [preciseAnalysis, setPreciseAnalysis] = useState<PreciseSolarAnalysis | null>(null)
 
   // 建物情報が有効かチェック
   const hasValidBuildingInfo = (project: Project): boolean => {
@@ -243,11 +241,11 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
         const { buildingArea, floors, maxHeight } = project.buildingInfo
         const buildingWidth = Math.sqrt(buildingArea!)
         const buildingDepth = buildingWidth
-        const floorHeight = (maxHeight || 10000) / floors! / 1000 // mm to m
+        const floorHeight = (maxHeight || 10000) / (floors || 1) / 1000 // mm to m
 
         const buildingGeometry = new THREE.BoxGeometry(
           buildingWidth,
-          floors * floorHeight,
+          (floors || 1) * floorHeight,
           buildingDepth
         )
         const buildingMaterial = new THREE.MeshStandardMaterial({ 
@@ -256,7 +254,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
           metalness: 0.1,
         })
         const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
-        building.position.y = (floors * floorHeight) / 2
+        building.position.y = ((floors || 1) * floorHeight) / 2
         building.castShadow = true
         building.receiveShadow = true
         buildingGroupRef.current.add(building)
@@ -264,7 +262,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
         shadowCasterRef.current = building
 
       // 各階の線を追加
-      for (let i = 1; i < floors; i++) {
+      for (let i = 1; i < (floors || 1); i++) {
         const floorLineGeometry = new THREE.BoxGeometry(
           buildingWidth + 0.1,
           0.1,
@@ -289,10 +287,10 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
   }, [project.buildingInfo, ifcUrl])
 
   // ボリュームチェック結果のキーをメモ化（変更検知用）
-  const volumeCheckKey = useMemo(() => {
-    if (!volumeCheckResult) return null
-    return `${volumeCheckResult.isCompliant}_${volumeCheckResult.checkPoints.length}_${volumeCheckResult.complianceRate}`
-  }, [volumeCheckResult])
+  // const volumeCheckKey = useMemo(() => {
+  //   if (!volumeCheckResult) return null
+  //   return `${volumeCheckResult.isCompliant}_${volumeCheckResult.checkPoints.length}_${volumeCheckResult.complianceRate}`
+  // }, [volumeCheckResult])
 
   // Volume check visualization - Three.jsシーン外で管理
   const volumeCheckVisualization = useMemo(() => {
@@ -597,7 +595,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
       const analysis = await advancedSolarAnalysisService.analyzePreciseShadows(
         latitude, longitude, address, date
       )
-      setPreciseAnalysis(analysis)
+      // setPreciseAnalysis(analysis)
       
       // 分析結果を親コンポーネントに通知
       if (onAnalysisUpdate) {
@@ -606,7 +604,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
       
       // 基本的な太陽データも取得
       const data = await solarDataService.getSolarData(latitude, longitude, date)
-      setSolarData(data)
+      // setSolarData(data)
       
       const { position, isDayTime } = data
       
@@ -794,7 +792,7 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
 }
 
 // 太陽位置計算関数（簡易版）
-function calculateSunPosition(date: Date, latitude: number, longitude: number) {
+function calculateSunPosition(date: Date, latitude: number, _longitude: number) {
   const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
   const declination = 23.45 * Math.sin((360 * (284 + dayOfYear) / 365) * Math.PI / 180)
   

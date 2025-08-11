@@ -280,7 +280,7 @@ class AdvancedSolarAnalysisService {
    */
   private async analyzeLocationEnvironment(
     latitude: number,
-    longitude: number,
+    _longitude: number,
     address: string
   ): Promise<LocationEnvironment> {
     // 住所から都市化レベルを推定
@@ -471,9 +471,9 @@ class AdvancedSolarAnalysisService {
    * フォールバック分析データ
    */
   private getFallbackAnalysis(
-    latitude: number,
-    longitude: number,
-    dateTime: Date
+    _latitude: number,
+    _longitude: number,
+    _dateTime: Date
   ): PreciseSolarAnalysis {
     return {
       weather: {
@@ -504,7 +504,27 @@ class AdvancedSolarAnalysisService {
         airQuality: 'good'
       },
       seasonalFactor: 0.8,
-      timeOfDayFactor: 0.7
+      timeOfDayFactor: 0.7,
+      detailedLocation: {
+        prefecture: '不明',
+        city: '不明',
+        ward: '不明',
+        district: '不明',
+        urbanDensityScore: 5,
+        buildingDensity: 0.5,
+        averageBuildingHeight: 15,
+        roadWidth: 6,
+        greenSpaceRatio: 0.3,
+        altitude: 50,
+        distanceToCoast: 50,
+        distanceToMountain: 20,
+        heatIslandIntensity: 2,
+        airQualityIndex: 7,
+        windExposure: 0.6,
+        shadowingFactor: 0.4,
+        reflectionFactor: 0.2,
+        skyViewFactor: 0.7
+      }
     }
   }
 }

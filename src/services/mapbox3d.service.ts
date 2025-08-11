@@ -23,10 +23,10 @@ export class Mapbox3DService {
   private camera: THREE.Camera | null = null
   private renderer: THREE.WebGLRenderer | null = null
   private homePosition: { lng: number; lat: number } | null = null
-  private sunLight: THREE.DirectionalLight | null = null
-  private ambientLight: THREE.AmbientLight | null = null
+  // private sunLight: THREE.DirectionalLight | null = null
+  // private ambientLight: THREE.AmbientLight | null = null
   private currentProject: Project | null = null
-  private sunSphere: THREE.Mesh | null = null
+  // private sunSphere: THREE.Mesh | null = null
 
   /**
    * 建物情報が有効かチェック
@@ -257,11 +257,11 @@ export class Mapbox3DService {
     )
 
     // Three.js統合レイヤー
-    const buildingLayer: mapboxgl.AnyLayer = {
+    const buildingLayer: any = {
       id: 'building-3d',
       type: 'custom',
       renderingMode: '3d',
-      onAdd: (map, gl) => {
+      onAdd: (map: any, gl: any) => {
         // Three.js シーンをセットアップ
         this.scene = new THREE.Scene()
         
@@ -318,13 +318,13 @@ export class Mapbox3DService {
           balcony.receiveShadow = true
           balcony.userData.type = 'balcony'
           balcony.userData.index = index
-          this.scene.add(balcony)
+          this.scene!.add(balcony)
         })
 
         // 各階の線を追加（Text2BIMの階高情報を使用）
         const { floorHeights, actualWidth, actualDepth } = text2BIMResult.metadata
         let currentHeight = 0
-        for (let i = 1; i < project.buildingInfo.floors; i++) {
+        for (let i = 1; i < (project.buildingInfo.floors || 1); i++) {
           currentHeight += floorHeights[i - 1]
           const floorLineGeometry = new THREE.BoxGeometry(
             actualWidth + 0.1,
@@ -371,7 +371,7 @@ export class Mapbox3DService {
         console.log('🏢 プロジェクト建物を追加:', {
           width: text2BIMResult.metadata.actualWidth,
           depth: text2BIMResult.metadata.actualDepth,
-          height: text2BIMResult.metadata.totalHeight,
+          height: text2BIMResult.metadata.actualHeight || 10,
           position: building.position,
           scale: building.scale,
           modelAltitude,
@@ -390,7 +390,7 @@ export class Mapbox3DService {
         map.triggerRepaint()
       },
 
-      render: (gl, matrix) => {
+      render: (_gl: any, matrix: any) => {
         if (!this.renderer || !this.scene || !this.camera) return
 
         const rotationX = new THREE.Matrix4().makeRotationAxis(
@@ -514,7 +514,7 @@ export class Mapbox3DService {
   /**
    * 太陽位置を計算
    */
-  private calculateSunPosition(dateTime: Date, latitude: number, longitude: number) {
+  private calculateSunPosition(dateTime: Date, latitude: number, _longitude: number) {
     // 簡易的な太陽位置計算
     const hour = dateTime.getHours() + dateTime.getMinutes() / 60
     const dayOfYear = Math.floor((dateTime.getTime() - new Date(dateTime.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
@@ -552,8 +552,8 @@ export class Mapbox3DService {
     if (!this.scene) return
 
     // 太陽光の位置を更新
-    const sunLight = this.scene.children.find(child => 
-      child instanceof THREE.DirectionalLight && child !== this.scene.children[0]
+    const sunLight = this.scene!.children.find(child => 
+      child instanceof THREE.DirectionalLight && child !== this.scene!.children[0]
     ) as THREE.DirectionalLight
 
     if (sunLight) {
@@ -662,7 +662,7 @@ export class Mapbox3DService {
     // 各階の線を追加
     const { floorHeights, actualWidth, actualDepth } = newText2BIMResult.metadata
     let currentHeight = 0
-    for (let i = 1; i < updatedBuildingInfo.floors; i++) {
+    for (let i = 1; i < (updatedBuildingInfo.floors || 1); i++) {
       currentHeight += floorHeights[i - 1]
       const floorLineGeometry = new THREE.BoxGeometry(
         actualWidth + 0.1,

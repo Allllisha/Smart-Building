@@ -8,9 +8,8 @@
         "longitude": 139.7517
       },
       "siteInfo": {
-        "landType": "宅地",
         "siteArea": 352.18,
-        "effectiveSiteArea": 352.18,
+        "frontRoadWidth": 6.0,
         "zoningType": "商業地域",
         "buildingCoverage": 60,
         "floorAreaRatio": 300,
@@ -27,12 +26,11 @@
       },
       "buildingInfo": {
         "usage": "共同住宅",
-        "structure": "壁式鉄筋コンクリート造",
+        "structure": "鉄筋コンクリート造",
         "floors": 5,
         "units": 18,
         "totalFloorArea": 1322.92,
         "maxHeight": 15100,
-        "foundationHeight": 300,
         "buildingArea": 285.12,
         "effectiveArea": 1285.64,
         "constructionArea": 1902.05,

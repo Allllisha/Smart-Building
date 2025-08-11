@@ -9,15 +9,12 @@ import {
   Grid,
   Alert,
   Snackbar,
-  Stack,
-  Divider,
-  Chip,
+  Stack
 } from '@mui/material'
 import {
   Business as BusinessIcon,
   Save as SaveIcon,
-  LocationOn as LocationIcon,
-  Phone as PhoneIcon,
+  Phone as PhoneIcon
 } from '@mui/icons-material'
 import { useSettingsStore } from '@/store/settingsStore'
 
@@ -63,7 +60,7 @@ export default function Settings() {
           </Typography>
         </Stack>
         <Grid container spacing={3}>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="会社名 *"
@@ -77,7 +74,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="代表者名"
@@ -90,7 +87,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="建設業許可"
@@ -115,7 +112,7 @@ export default function Settings() {
         </Stack>
         <Grid container spacing={3}>
 
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
               label="郵便番号"
@@ -128,7 +125,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="住所 *"
@@ -142,7 +139,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="電話番号 *"
@@ -156,7 +153,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="FAX番号"
@@ -169,7 +166,7 @@ export default function Settings() {
             />
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="メールアドレス"
