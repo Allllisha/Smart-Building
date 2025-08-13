@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>API Test</title>
+</head>
+<body>
+    <h1>都市計画情報API テスト</h1>
+    <button onclick="testGeocode()">Geocode Test</button>
+    <button onclick="testPlanningData()">Planning Data Test</button>
+    <div id="result"></div>
+    
+    <script>
+        const API_URL = 'https://smart-building-planner-api.azurewebsites.net/api';
+        
+        async function testGeocode() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing geocode...';
+            
+            try {
+                const response = await fetch(`${API_URL}/cityplanning/geocode?address=東京都渋谷区`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>Geocode Result:\n${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+            }
+        }
+        
+        async function testPlanningData() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing planning data...';
+            
+            try {
+                const response = await fetch(`${API_URL}/cityplanning/planning-data?lat=35.6762&lng=139.6503`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>Planning Data Result:\n${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

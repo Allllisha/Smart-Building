@@ -10,6 +10,7 @@ import estimationRoutes from './routes/estimation.routes'
 import bimRoutes from './routes/bim.routes'
 import webSearchRoutes from './routes/websearch.routes'
 import aiRoutes from './routes/ai.routes'
+import cityPlanningRoutes from './routes/cityplanning.routes'
 import { errorHandler } from './middleware/error.middleware'
 
 // 環境変数の読み込み
@@ -39,6 +40,7 @@ app.use('/api/estimation', estimationRoutes)
 app.use('/api', bimRoutes)
 app.use('/api/websearch', webSearchRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/cityplanning', cityPlanningRoutes)
 
 // エラーハンドリング
 app.use(errorHandler)

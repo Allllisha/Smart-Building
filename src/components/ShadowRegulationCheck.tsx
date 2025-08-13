@@ -14,6 +14,10 @@ import {
   ListItemIcon,
   ListItemText,
   useTheme,
+  Tooltip,
+  Card,
+  CardContent,
+  Grid,
 } from '@mui/material'
 import {
   CheckCircle as CheckCircleIcon,
@@ -23,9 +27,11 @@ import {
   Business as BusinessIcon,
   Straighten as RulerIcon,
   Info as InfoIcon,
+  CompareArrows as CompareIcon,
 } from '@mui/icons-material'
 import { Project } from '@/types/project'
 import { shadowRegulationCheckService } from '@/services/shadowRegulationCheck.service'
+import { getShadowRegulationReferenceFromAPI } from '@/services/shadowRegulationService'
 
 interface ShadowRegulationCheckProps {
   project: Project
@@ -36,6 +42,55 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [referenceValues, setReferenceValues] = useState<any>(null)
+  const [zoningMismatch, setZoningMismatch] = useState(false)
+
+  // 参考値を取得
+  useEffect(() => {
+    const fetchReferenceValues = async () => {
+      if (project?.siteInfo?.zoningType && project?.siteInfo?.floorAreaRatio) {
+        try {
+          const reference = await getShadowRegulationReferenceFromAPI(
+            project.siteInfo.zoningType,
+            project.siteInfo.floorAreaRatio,
+            project.location?.latitude,
+            project.location?.longitude
+          )
+          setReferenceValues(reference)
+        } catch (error) {
+          console.error('参考値取得エラー:', error)
+        }
+      }
+    }
+    
+    fetchReferenceValues()
+  }, [project?.siteInfo?.zoningType, project?.siteInfo?.floorAreaRatio, project?.location])
+
+  // 用途地域の不整合をチェック（独立したuseEffect）
+  useEffect(() => {
+    const currentZoning = project?.siteInfo?.zoningType?.trim()
+    const targetZoning = project?.siteInfo?.shadowRegulation?.targetArea?.trim()
+    
+    console.log('用途地域チェック:', {
+      currentZoning,
+      targetZoning,
+      isEqual: currentZoning === targetZoning,
+      currentLength: currentZoning?.length,
+      targetLength: targetZoning?.length,
+      shadowRegulation: project?.siteInfo?.shadowRegulation
+    })
+    
+    if (targetZoning && currentZoning && targetZoning !== currentZoning) {
+      setZoningMismatch(true)
+    } else {
+      setZoningMismatch(false)
+    }
+  }, [
+    project?.siteInfo?.zoningType, 
+    project?.siteInfo?.shadowRegulation?.targetArea,
+    project?.siteInfo?.shadowRegulation?.allowedShadowTime5to10m,
+    project?.siteInfo?.shadowRegulation?.allowedShadowTimeOver10m
+  ])
 
   useEffect(() => {
     const checkShadowRegulation = async () => {
@@ -172,16 +227,30 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
           
           {/* 総合判定 */}
           <Alert 
-            severity={getStatusColor(result.overallStatus)} 
+            severity={zoningMismatch ? 'warning' : getStatusColor(result.overallStatus)} 
             sx={{ mb: 2 }}
-            icon={getStatusIcon(result.overallStatus)}
+            icon={zoningMismatch ? <WarningIcon /> : getStatusIcon(result.overallStatus)}
           >
             <AlertTitle>
-              {result.overallStatus === 'OK' && '建築可能'}
-              {result.overallStatus === 'NG' && '建築不可'}
-              {result.overallStatus === 'WARNING' && '条件付き建築可能'}
+              {zoningMismatch ? '要確認' : (
+                <>
+                  {result.overallStatus === 'OK' && '建築可能'}
+                  {result.overallStatus === 'NG' && '建築不可'}
+                  {result.overallStatus === 'WARNING' && '条件付き建築可能'}
+                </>
+              )}
             </AlertTitle>
-            {result.summary}
+            {zoningMismatch ? (
+              <>
+                用途地域が変更されています。現在の用途地域「{project.siteInfo.zoningType}」に対する
+                正しい日影規制値を適用してから再確認してください。
+                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                  （現在は「{project.siteInfo.shadowRegulation?.targetArea}」の規制値で判定：{result.summary}）
+                </Typography>
+              </>
+            ) : (
+              result.summary
+            )}
           </Alert>
         </Box>
 
@@ -199,45 +268,145 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
               <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
                 <BusinessIcon color="primary" />
                 <Typography variant="subtitle1" fontWeight="600">
-                  用途地域: {project.siteInfo.zoningType || '未設定'}
+                  チェックに使用する用途地域: {project.siteInfo.shadowRegulation?.targetArea || project.siteInfo.zoningType || '未設定'}
                 </Typography>
               </Stack>
+              {project.siteInfo.zoningType && 
+               project.siteInfo.shadowRegulation?.targetArea && 
+               project.siteInfo.zoningType !== project.siteInfo.shadowRegulation.targetArea && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  <Typography variant="caption">
+                    現在の用途地域「{project.siteInfo.zoningType}」と異なります
+                  </Typography>
+                </Alert>
+              )}
               {result.zoningInfo && (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {result.zoningInfo.description}
                 </Typography>
               )}
             </Paper>
 
-            {/* 規制値 */}
+            {/* 規制値（使用値と参考値の比較表示） */}
             {result.regulations && (
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
                   <RulerIcon color="primary" />
                   <Typography variant="subtitle1" fontWeight="600">
-                    日影規制値
+                    日影規制値（チェックに使用される値）
                   </Typography>
                 </Stack>
+                
+                {/* 整合性警告 */}
+                {zoningMismatch && (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    <AlertTitle>用途地域が変更されています</AlertTitle>
+                    現在の用途地域は「{project.siteInfo.zoningType}」ですが、
+                    日影規制は「{project.siteInfo.shadowRegulation?.targetArea}」の設定値を使用しています。
+                    「日影規制（参考値自動計算・編集可能）」で参考値を適用して更新することをお勧めします。
+                  </Alert>
+                )}
+                
                 <List dense>
                   <ListItem>
                     <ListItemText 
-                      primary="5-10m範囲"
-                      secondary={`${result.regulations.fiveToTenMeters || '-'}時間以内`}
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2">5-10m範囲</Typography>
+                          {referenceValues && 
+                           result.regulations.fiveToTenMeters !== referenceValues.allowedShadowTime5to10m && (
+                            <Tooltip title="参考値と異なります">
+                              <WarningIcon color="warning" fontSize="small" />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.primary" fontWeight="600">
+                            使用値: {result.regulations.fiveToTenMeters || '-'}時間以内
+                          </Typography>
+                          {referenceValues && (
+                            <Typography variant="caption" color="text.secondary">
+                              参考値: {referenceValues.allowedShadowTime5to10m}時間以内
+                              {result.regulations.fiveToTenMeters !== referenceValues.allowedShadowTime5to10m && 
+                                ' （差異あり）'}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
                     />
                   </ListItem>
                   <ListItem>
                     <ListItemText 
-                      primary="10m超範囲"
-                      secondary={`${result.regulations.overTenMeters || '-'}時間以内`}
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2">10m超範囲</Typography>
+                          {referenceValues && 
+                           result.regulations.overTenMeters !== referenceValues.allowedShadowTimeOver10m && (
+                            <Tooltip title="参考値と異なります">
+                              <WarningIcon color="warning" fontSize="small" />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.primary" fontWeight="600">
+                            使用値: {result.regulations.overTenMeters || '-'}時間以内
+                          </Typography>
+                          {referenceValues && (
+                            <Typography variant="caption" color="text.secondary">
+                              参考値: {referenceValues.allowedShadowTimeOver10m}時間以内
+                              {result.regulations.overTenMeters !== referenceValues.allowedShadowTimeOver10m && 
+                                ' （差異あり）'}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
                     />
                   </ListItem>
                   <ListItem>
                     <ListItemText 
-                      primary="測定高さ"
-                      secondary={`${result.regulations.measurementHeight || '-'}m`}
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2">測定高さ</Typography>
+                          {referenceValues && 
+                           result.regulations.measurementHeight !== referenceValues.measurementHeight && (
+                            <Tooltip title="参考値と異なります">
+                              <WarningIcon color="warning" fontSize="small" />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.primary" fontWeight="600">
+                            使用値: {result.regulations.measurementHeight || '-'}m
+                          </Typography>
+                          {referenceValues && (
+                            <Typography variant="caption" color="text.secondary">
+                              参考値: {referenceValues.measurementHeight}m
+                              {result.regulations.measurementHeight !== referenceValues.measurementHeight && 
+                                ' （差異あり）'}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
                     />
                   </ListItem>
                 </List>
+                
+                {/* 値の出所を明示 */}
+                <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    <InfoIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                    使用値: 「日影規制（参考値自動計算・編集可能）」で設定された値
+                    {referenceValues && (
+                      <><br />参考値: 用途地域「{project.siteInfo.zoningType}」・容積率{project.siteInfo.floorAreaRatio}%から自動計算</>
+                    )}
+                  </Typography>
+                </Box>
               </Paper>
             )}
 
@@ -269,6 +438,48 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
                   ))}
                 </List>
               </Paper>
+            )}
+            
+            {/* 参考値との比較カード */}
+            {referenceValues && project.siteInfo.shadowRegulation && (
+              <Card sx={{ bgcolor: 'info.50', border: '1px solid', borderColor: 'info.200' }}>
+                <CardContent>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                    <CompareIcon color="info" />
+                    <Typography variant="subtitle2" fontWeight="600">
+                      設定値と参考値の比較
+                    </Typography>
+                  </Stack>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">設定値（使用中）</Typography>
+                      <Typography variant="body2">
+                        対象地域: {project.siteInfo.shadowRegulation.targetArea || '-'}<br />
+                        5-10m: {project.siteInfo.shadowRegulation.allowedShadowTime5to10m}時間<br />
+                        10m超: {project.siteInfo.shadowRegulation.allowedShadowTimeOver10m}時間
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">参考値（推奨）</Typography>
+                      <Typography variant="body2">
+                        対象地域: {referenceValues.targetArea}<br />
+                        5-10m: {referenceValues.allowedShadowTime5to10m}時間<br />
+                        10m超: {referenceValues.allowedShadowTimeOver10m}時間
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                  
+                  {(project.siteInfo.shadowRegulation.allowedShadowTime5to10m !== referenceValues.allowedShadowTime5to10m ||
+                    project.siteInfo.shadowRegulation.allowedShadowTimeOver10m !== referenceValues.allowedShadowTimeOver10m) && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      <Typography variant="caption">
+                        設定値と参考値に差異があります。「日影規制（参考値自動計算・編集可能）」で参考値を適用できます。
+                      </Typography>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
           </Stack>

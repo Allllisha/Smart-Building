@@ -124,7 +124,15 @@ export class ProjectController {
             measurementTime: shadowRegulation.measurement_time || '',
             allowedShadowTime5to10m: shadowRegulation.allowed_shadow_time_5to10m ? Number(shadowRegulation.allowed_shadow_time_5to10m) : 0,
             allowedShadowTimeOver10m: shadowRegulation.allowed_shadow_time_over10m ? Number(shadowRegulation.allowed_shadow_time_over10m) : 0,
-          } : null,
+          } : {
+            // 初期値として空のオブジェクトを設定（住所入力後に自動計算される）
+            targetArea: '',
+            targetBuilding: '',
+            measurementHeight: 0,
+            measurementTime: '',
+            allowedShadowTime5to10m: 0,
+            allowedShadowTimeOver10m: 0,
+          },
           administrativeGuidanceDetails: administrativeGuidanceDetails.map(g => ({
             id: g.guidance_id,
             name: g.name,
@@ -242,7 +250,15 @@ export class ProjectController {
             measurementTime: shadowRegulation.measurement_time || '',
             allowedShadowTime5to10m: shadowRegulation.allowed_shadow_time_5to10m ? Number(shadowRegulation.allowed_shadow_time_5to10m) : 0,
             allowedShadowTimeOver10m: shadowRegulation.allowed_shadow_time_over10m ? Number(shadowRegulation.allowed_shadow_time_over10m) : 0,
-          } : null,
+          } : {
+            // 初期値として空のオブジェクトを設定（住所入力後に自動計算される）
+            targetArea: '',
+            targetBuilding: '',
+            measurementHeight: 0,
+            measurementTime: '',
+            allowedShadowTime5to10m: 0,
+            allowedShadowTimeOver10m: 0,
+          },
           administrativeGuidanceDetails: administrativeGuidanceDetails.map(g => ({
             id: g.guidance_id,
             name: g.name,

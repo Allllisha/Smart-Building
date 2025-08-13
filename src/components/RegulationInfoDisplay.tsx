@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -13,23 +13,30 @@ import {
   IconButton,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Chip
 } from '@mui/material';
 import { 
   Refresh as RefreshIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  AutoFixHigh as AutoIcon
 } from '@mui/icons-material';
 import { RegulationSearchState } from '@/types/regulationSearch';
 import { AdministrativeGuidance, ShadowRegulation, AdministrativeGuidanceItem } from '@/types/project';
+import { getShadowRegulationReference, getShadowRegulationReferenceFromAPI } from '@/services/shadowRegulationService';
 
 interface RegulationInfoDisplayProps {
   searchState: RegulationSearchState;
   administrativeGuidance: AdministrativeGuidance;
   administrativeGuidanceDetails?: AdministrativeGuidanceItem[];
   shadowRegulation?: ShadowRegulation;
+  zoningType?: string;  // 用途地域
+  floorAreaRatio?: number;  // 容積率
+  lat?: number;  // 緯度（商業地域の場合に必要）
+  lng?: number;  // 経度（商業地域の場合に必要）
   onRefreshShadow: () => void;
   onRefreshAdminGuidance: () => void;
   onAdminGuidanceChange: (item: string, checked: boolean) => void;
@@ -43,6 +50,10 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
   administrativeGuidance,
   administrativeGuidanceDetails,
   shadowRegulation: projectShadowRegulation,
+  zoningType,
+  floorAreaRatio,
+  lat,
+  lng,
   onRefreshShadow,
   onRefreshAdminGuidance,
   onAdminGuidanceChange,
@@ -56,6 +67,70 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
   const [showAddGuidance, setShowAddGuidance] = useState(false);
   const [newGuidanceName, setNewGuidanceName] = useState('');
   const [newGuidanceDescription, setNewGuidanceDescription] = useState('');
+  const [autoCalculatedShadow, setAutoCalculatedShadow] = useState<Partial<ShadowRegulation> | null>(null);
+  const [previousZoningType, setPreviousZoningType] = useState<string>('');
+  
+  // 用途地域と容積率から日影規制の参考値を自動計算
+  useEffect(() => {
+    const fetchShadowRegulation = async () => {
+      if (zoningType && floorAreaRatio) {
+        try {
+          // すべての用途地域でAPIを使用（商業地域の場合は座標情報も送信）
+          const reference = await getShadowRegulationReferenceFromAPI(zoningType, floorAreaRatio, lat, lng);
+          if (reference) {
+            const calculatedShadow = {
+              targetArea: reference.targetArea,
+              targetBuilding: reference.targetBuilding,
+              measurementHeight: reference.measurementHeight,
+              measurementTime: reference.measurementTime,
+              allowedShadowTime5to10m: reference.allowedShadowTime5to10m,
+              allowedShadowTimeOver10m: reference.allowedShadowTimeOver10m
+            };
+            setAutoCalculatedShadow(calculatedShadow);
+            
+            // プロジェクトに保存された値がない場合のみ、自動的に参考値を適用
+            if (!projectShadowRegulation || !projectShadowRegulation.targetArea) {
+              onShadowRegulationChange?.(calculatedShadow);
+            }
+          } else {
+            setAutoCalculatedShadow(null);
+          }
+        } catch (error) {
+          console.error('日影規制参考値の取得に失敗:', error);
+          // フォールバックとしてローカル計算を使用
+          const reference = getShadowRegulationReference(zoningType, floorAreaRatio);
+          if (reference) {
+            const calculatedShadow = {
+              targetArea: reference.targetArea,
+              targetBuilding: reference.targetBuilding,
+              measurementHeight: reference.measurementHeight,
+              measurementTime: reference.measurementTime,
+              allowedShadowTime5to10m: reference.allowedShadowTime5to10m,
+              allowedShadowTimeOver10m: reference.allowedShadowTimeOver10m
+            };
+            setAutoCalculatedShadow(calculatedShadow);
+            
+            // プロジェクトに保存された値がない場合のみ、自動的に参考値を適用
+            if (!projectShadowRegulation || !projectShadowRegulation.targetArea) {
+              onShadowRegulationChange?.(calculatedShadow);
+            }
+          } else {
+            setAutoCalculatedShadow(null);
+          }
+        }
+      }
+    };
+    
+    fetchShadowRegulation();
+  }, [zoningType, floorAreaRatio, lat, lng, projectShadowRegulation, onShadowRegulationChange]);
+  
+  // 自動計算値を適用
+  const applyAutoCalculated = () => {
+    if (autoCalculatedShadow && onShadowRegulationChange) {
+      onShadowRegulationChange(autoCalculatedShadow);
+      setIsEditing(false);
+    }
+  };
   
   // 行政指導・要綱の編集状態
   const [isEditingAdminGuidance, setIsEditingAdminGuidance] = useState(false);
@@ -256,15 +331,20 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
     setIsEditing(false);
   };
   
-  // 表示用のデータを決定（編集中は編集値、そうでなければプロジェクトの値またはAI取得値）
+  // 表示用のデータを決定（編集中は編集値、そうでなければプロジェクトの値）
   const displayShadowData = useMemo(() => {
     if (isEditing) {
       return editValues;
     }
     
-    // プロジェクトの値を優先
-    if (projectShadowRegulation && projectShadowRegulation.targetArea) {
+    // プロジェクトの値を優先（ユーザーが編集した値を表示）
+    if (projectShadowRegulation && projectShadowRegulation.targetArea && projectShadowRegulation.targetArea !== '') {
       return projectShadowRegulation;
+    }
+    
+    // プロジェクトに値がない場合は、自動計算された参考値を初期値として表示
+    if (autoCalculatedShadow && autoCalculatedShadow.targetArea) {
+      return autoCalculatedShadow;
     }
     
     // AI取得値をプロジェクトの形式にマップ
@@ -281,7 +361,7 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
     }
     
     return null;
-  }, [isEditing, editValues, projectShadowRegulation, shadowRegulation.data]);
+  }, [isEditing, editValues, projectShadowRegulation, shadowRegulation.data, autoCalculatedShadow]);
 
   // 行政指導の追加処理
   const handleAddGuidance = () => {
@@ -314,19 +394,43 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
         <Box sx={{ mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
             <Typography variant="h6" sx={{ color: 'primary.main', flex: 1, minWidth: 200 }}>
-              日影規制（手動入力・編集可能）
+              日影規制（参考値自動計算・編集可能）
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={onRefreshShadow}
-                disabled={shadowRegulation.isLoading || isEditing}
-                sx={{ flexShrink: 0 }}
-              >
-                {shadowRegulation.isLoading ? '検索中...' : 'AI再検索'}
-              </Button>
+              {autoCalculatedShadow && (
+                <Button
+                  size="small"
+                  variant={
+                    // 参考値と現在の値が異なる場合は強調表示
+                    JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) 
+                      ? "contained" 
+                      : "outlined"
+                  }
+                  color={
+                    JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) 
+                      ? "warning" 
+                      : "success"
+                  }
+                  startIcon={<AutoIcon />}
+                  onClick={applyAutoCalculated}
+                  disabled={isEditing}
+                  sx={{ 
+                    flexShrink: 0,
+                    ...(JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) && {
+                      animation: 'pulse 2s infinite',
+                      '@keyframes pulse': {
+                        '0%': { opacity: 1 },
+                        '50%': { opacity: 0.7 },
+                        '100%': { opacity: 1 },
+                      }
+                    })
+                  }}
+                >
+                  {JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) 
+                    ? "参考値を適用（更新あり）" 
+                    : "参考値を適用"}
+                </Button>
+              )}
               {!isEditing ? (
                 <Button
                   size="small"
@@ -364,9 +468,50 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
         <Typography variant="body2" color="text.secondary" gutterBottom>
           {isEditing 
             ? '日影規制の各項目を直接編集できます' 
-            : 'AIが自動取得した値を手動で編集できます。「編集」ボタンで編集モードに切り替えます。'
+            : autoCalculatedShadow 
+              ? '用途地域と容積率から参考値を自動計算しました。「参考値を適用」または「編集」ボタンで調整してください。'
+              : '日影規制の参考値は用途地域と容穌率から自動計算されます。「編集」ボタンで手動入力も可能です。'
           }
         </Typography>
+        
+        {autoCalculatedShadow && !isEditing && (
+          <Alert 
+            severity={
+              // ユーザーが編集した値と参考値が異なる場合は警告色
+              projectShadowRegulation && 
+              JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) 
+                ? "warning" 
+                : "info"
+            } 
+            sx={{ mb: 2 }}
+          >
+            <Typography variant="body2">
+              <strong>
+                {projectShadowRegulation && 
+                 JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation)
+                  ? '参考値（用途地域・容積率から自動計算）：'
+                  : '参考値：'}
+              </strong>
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              対象地域: {autoCalculatedShadow.targetArea}<br />
+              対象建築物: {autoCalculatedShadow.targetBuilding}<br />
+              測定面高さ: {autoCalculatedShadow.measurementHeight}m<br />
+              測定時間帯: {autoCalculatedShadow.measurementTime}<br />
+              5-10m範囲: {autoCalculatedShadow.allowedShadowTime5to10m}時間以内、
+              10m超: {autoCalculatedShadow.allowedShadowTimeOver10m}時間以内
+            </Typography>
+            {projectShadowRegulation && 
+             JSON.stringify(autoCalculatedShadow) !== JSON.stringify(projectShadowRegulation) && (
+              <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
+                ※ 現在の設定値は参考値と異なります。「参考値を適用」ボタンで参考値に戻すことができます。
+              </Typography>
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              ※ これは用途地域と容積率から計算された参考値です。正確な値は自治体に確認してください。
+            </Typography>
+          </Alert>
+        )}
 
         {shadowRegulation.isLoading ? (
           <Box sx={{ 

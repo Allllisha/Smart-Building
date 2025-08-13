@@ -290,7 +290,7 @@ export function useRegulationSearch(
         // 日影規制情報の保存
         if (searchTypes.includes('shadow')) {
           // 用途地域から日影規制を決定（AI検索結果よりも用途地域を優先）
-          const zoningType = updates.siteInfo.zoningType || currentProject.siteInfo.zoningType || '第一種低層住居専用地域';
+          const zoningType = updates.siteInfo.zoningType || currentProject.siteInfo.zoningType || '';
           console.log('🔍 用途地域に基づく日影規制の設定:', zoningType);
           
           // 用途地域に基づく日影規制値を設定
@@ -697,6 +697,9 @@ function getShadowRegulationFromZoningType(zoningType: string) {
     }
   };
 
-  // デフォルトは第一種低層住居専用地域
-  return shadowRegulationMapping[zoningType] || shadowRegulationMapping['第一種低層住居専用地域'];
+  // 用途地域が設定されていない場合はnullを返す
+  if (!zoningType) {
+    return null;
+  }
+  return shadowRegulationMapping[zoningType] || null;
 }

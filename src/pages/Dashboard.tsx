@@ -113,6 +113,15 @@ export default function Dashboard() {
               midHighRiseOrdinance: false,
               embankmentRegulation: false,
             },
+            // 日影規制のデフォルト値を設定（住所入力後に自動計算される）
+            shadowRegulation: {
+              targetArea: '',
+              targetBuilding: '',
+              measurementHeight: 0,
+              measurementTime: '',
+              allowedShadowTime5to10m: 0,
+              allowedShadowTimeOver10m: 0
+            },
           },
         }
 

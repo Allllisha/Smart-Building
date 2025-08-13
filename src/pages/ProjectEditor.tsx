@@ -1186,12 +1186,20 @@ export default function ProjectEditor() {
                 <Grid container spacing={4}>
                   <Grid size={{ xs: 12 }}>
                     <ZoningInfoDisplay
-                      zoningState={regulationState.zoningInfo}
                       siteInfo={currentProject.siteInfo}
-                      onRefresh={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['zoning'] })}
+                      address={currentProject.location.address}
                       onSiteInfoChange={(updates) => {
                         debouncedUpdateProject(currentProject.id, {
                           siteInfo: { ...currentProject.siteInfo, ...updates }
+                        })
+                      }}
+                      onLocationUpdate={(lat, lng) => {
+                        debouncedUpdateProject(currentProject.id, {
+                          location: { 
+                            ...currentProject.location, 
+                            latitude: lat, 
+                            longitude: lng 
+                          }
                         })
                       }}
                     />
@@ -1203,6 +1211,10 @@ export default function ProjectEditor() {
                       administrativeGuidance={currentProject.siteInfo.administrativeGuidance}
                       administrativeGuidanceDetails={currentProject.siteInfo.administrativeGuidanceDetails}
                       shadowRegulation={currentProject.siteInfo.shadowRegulation}
+                      zoningType={currentProject.siteInfo.zoningType}
+                      floorAreaRatio={currentProject.siteInfo.floorAreaRatio}
+                      lat={currentProject.location.latitude}
+                      lng={currentProject.location.longitude}
                       onRefreshShadow={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['shadow'] })}
                       onRefreshAdminGuidance={() => searchRegulations(currentProject.location.address, { forceRefresh: true, searchTypes: ['administrative'] })}
                       onAdminGuidanceChange={(itemId, checked) => {

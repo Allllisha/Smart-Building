@@ -97,9 +97,9 @@ class ShadowRegulationCheckService {
 
       // プロジェクトに保存された日影規制値を優先的に使用
       const shadowRegulationValues = project.siteInfo.shadowRegulation || {};
-      const fiveToTenMeters = shadowRegulationValues.allowedShadowTime5to10m ?? regulation.restrictions.range5to10m;
-      const overTenMeters = shadowRegulationValues.allowedShadowTimeOver10m ?? regulation.restrictions.rangeOver10m;
-      const measurementHeight = shadowRegulationValues.measurementHeight ?? regulation.measurementHeight;
+      const fiveToTenMeters = shadowRegulationValues.allowedShadowTime5to10m ?? regulation?.restrictions?.range5to10m ?? 0;
+      const overTenMeters = shadowRegulationValues.allowedShadowTimeOver10m ?? regulation?.restrictions?.rangeOver10m ?? 0;
+      const measurementHeight = shadowRegulationValues.measurementHeight ?? regulation?.measurementHeight ?? 0;
 
       return {
         overallStatus: buildabilityResult.isBuildable ? 'OK' : 'NG',
@@ -154,15 +154,15 @@ class ShadowRegulationCheckService {
           },
           {
             name: '日影規制',
-            description: this.getShadowRegulationDescription({
+            description: regulation ? this.getShadowRegulationDescription({
               ...regulation,
               restrictions: {
                 range5to10m: fiveToTenMeters,
                 rangeOver10m: overTenMeters
               }
-            }, project),
-            status: this.getShadowRegulationStatus(regulation),
-            value: `${fiveToTenMeters}h/${overTenMeters}h`
+            }, project) : '用途地域が設定されていないため、日影規制が確認できません',
+            status: regulation ? this.getShadowRegulationStatus(regulation) : 'WARNING',
+            value: regulation ? `${fiveToTenMeters}h/${overTenMeters}h` : '未設定'
           }
         ]
       }
@@ -200,6 +200,12 @@ class ShadowRegulationCheckService {
         locationInfo.ward,
         project
       )
+
+      // regulationがnullの場合の処理
+      if (!regulation) {
+        console.log('⚠️ 用途地域が設定されていないため、日影規制チェックをスキップします')
+        return this.createErrorResult('用途地域が設定されていません')
+      }
 
       // 建物が規制対象かチェック
       const buildingHeight = (project.buildingInfo.maxHeight || 3000) / 1000 // mm to m
@@ -274,12 +280,20 @@ class ShadowRegulationCheckService {
         timeRange: { start: 8, end: 16 } // 標準的な測定時間帯
       }
       
-      // 測定時間帯の解析（例: "冬至日の午前8時から午後4時"）
+      // 測定時間帯の解析（例: "8時から16時（冬至日）"）
       if (savedRegulation.measurementTime) {
-        const timeMatch = savedRegulation.measurementTime.match(/午前(\d+)時.*?午後(\d+)時/)
+        // "8時から16時" 形式を解析
+        const timeMatch = savedRegulation.measurementTime.match(/(\d+)時から(\d+)時/)
         if (timeMatch) {
           regulation.timeRange.start = parseInt(timeMatch[1])
-          regulation.timeRange.end = parseInt(timeMatch[2]) + 12 // 午後は12を加算
+          regulation.timeRange.end = parseInt(timeMatch[2])
+        } else {
+          // 旧形式 "午前8時から午後4時" にも対応
+          const oldTimeMatch = savedRegulation.measurementTime.match(/午前(\d+)時.*?午後(\d+)時/)
+          if (oldTimeMatch) {
+            regulation.timeRange.start = parseInt(oldTimeMatch[1])
+            regulation.timeRange.end = parseInt(oldTimeMatch[2]) + 12 // 午後は12を加算
+          }
         }
       }
       
@@ -287,11 +301,14 @@ class ShadowRegulationCheckService {
       return regulation
     }
 
-    // 保存されていない場合はデフォルト値を使用
-    console.log('⚠️ 保存された規制情報がないため、デフォルト値（第一種低層住居専用地域）を使用')
+    // 保存されていない場合はプロジェクトの用途地域を使用
+    const zoneType = project?.siteInfo?.zoningType
     
-    // プロジェクトに用途地域が設定されている場合はそれを使用、なければデフォルト
-    const zoneType = project?.siteInfo?.zoningType || '第一種低層住居専用地域'
+    if (!zoneType) {
+      console.log('⚠️ 用途地域が設定されていません')
+      return null
+    }
+    
     console.log('🏠 使用する用途地域:', zoneType)
     
     const regulation = this.getRegulationByZone(zoneType)
@@ -350,7 +367,7 @@ class ShadowRegulationCheckService {
       return '第一種中高層住居専用地域'
     }
     
-    return '第一種低層住居専用地域' // デフォルト
+    return '' // デフォルト値なし
   }
 
   /**
@@ -432,7 +449,7 @@ class ShadowRegulationCheckService {
       }
     }
 
-    return regulations[zoneType] || regulations['第一種低層住居専用地域']
+    return regulations[zoneType] || null
   }
 
   /**
@@ -698,7 +715,7 @@ class ShadowRegulationCheckService {
   /**
    * エラー時の結果
    */
-  private createErrorResult(): VolumeCheckResult {
+  private createErrorResult(message?: string): VolumeCheckResult {
     const defaultRegulation: ZoneRegulation = {
       zone: '判定不可',
       targetHeight: 10,
@@ -715,7 +732,7 @@ class ShadowRegulationCheckService {
       maxViolationHours: 0,
       violationArea: 0,
       complianceRate: 0,
-      recommendations: ['日影規制チェック中にエラーが発生しました。']
+      recommendations: [message || '日影規制チェック中にエラーが発生しました。']
     }
   }
 }
