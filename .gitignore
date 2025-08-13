@@ -54,4 +54,4 @@ venv.bak/
 # Text2BIM specific
 Text2BIM/tool_agent/Ifc_test_data/*.ifc
 Text2BIM/tool_agent/Ifc_test_data/*.txt
-*.smc.bak
+*.smc.bak.env.production.backup
