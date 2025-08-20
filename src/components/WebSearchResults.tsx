@@ -90,7 +90,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <LocationCity color="primary" sx={{ mr: 1 }} />
-                  <Typography variant="h6">都市計画情報</Typography>
+                  <Typography variant="h6" sx={{ color: '#2C3E50' }}>都市計画情報</Typography>
                 </Box>
                 
                 <List dense>
@@ -142,7 +142,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <WbSunny color="warning" sx={{ mr: 1 }} />
-                  <Typography variant="h6">日影規制</Typography>
+                  <Typography variant="h6" sx={{ color: '#2C3E50' }}>日影規制</Typography>
                 </Box>
                 
                 <List dense>
@@ -194,7 +194,7 @@ const WebSearchResults: React.FC<WebSearchResultsProps> = ({
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Policy color="info" sx={{ mr: 1 }} />
-                  <Typography variant="h6">行政指導・要綱</Typography>
+                  <Typography variant="h6" sx={{ color: '#2C3E50' }}>行政指導・要綱</Typography>
                 </Box>
                 
                 <List dense>

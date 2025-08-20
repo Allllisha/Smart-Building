@@ -4,24 +4,24 @@ import { createTheme } from '@mui/material/styles'
 export const professionalTheme = createTheme({
   palette: {
     primary: {
-      main: '#2C3E50',      // ダークネイビー（プロフェッショナル）
-      light: '#34495E',     // ライトグレー
-      dark: '#1A252F',      // ダークネイビー
+      main: '#d32f2f',      // 赤（メインカラー）
+      light: '#ef5350',     // ライトレッド
+      dark: '#c62828',      // ダークレッド
       contrastText: '#FFFFFF'
     },
     secondary: {
       main: '#95A5A6',      // ニュートラルグレー
       light: '#BDC3C7',     // ライトグレー
       dark: '#7F8C8D',      // ダークグレー
-      contrastText: '#2C3E50'
+      contrastText: '#d32f2f'
     },
     background: {
       default: '#F8F9FA',   // 極薄グレー背景
       paper: '#FFFFFF'      // 純白
     },
     text: {
-      primary: '#2C3E50',   // ダークネイビー
-      secondary: '#5D6D7E', // ミディアムグレー
+      primary: '#2C3E50',   // テキストは読みやすさのためダークグレー
+      secondary: '#5D6D7E', // ミディアムグレー  
       disabled: '#95A5A6'   // ライトグレー
     },
     divider: '#E5E8E8',     // 境界線色
@@ -68,56 +68,56 @@ export const professionalTheme = createTheme({
       fontWeight: 300,
       lineHeight: 1.2,
       letterSpacing: '-0.01562em',
-      color: '#2C3E50'
+      color: '#d32f2f'
     },
     h2: {
       fontSize: '2rem',
       fontWeight: 300,
       lineHeight: 1.2,
       letterSpacing: '-0.00833em',
-      color: '#2C3E50'
+      color: '#d32f2f'
     },
     h3: {
       fontSize: '1.75rem',
       fontWeight: 400,
       lineHeight: 1.167,
       letterSpacing: '0em',
-      color: '#2C3E50'
+      color: '#d32f2f'
     },
     h4: {
       fontSize: '1.5rem',
       fontWeight: 400,
       lineHeight: 1.235,
       letterSpacing: '0.00735em',
-      color: '#2C3E50'
+      color: '#d32f2f'
     },
     h5: {
       fontSize: '1.25rem',
       fontWeight: 500,
       lineHeight: 1.334,
       letterSpacing: '0em',
-      color: '#2C3E50'
+      color: '#1e3a8a'
     },
     h6: {
       fontSize: '1.125rem',
       fontWeight: 500,
       lineHeight: 1.4,
       letterSpacing: '0.0075em',
-      color: '#2C3E50'
+      color: '#1e3a8a'
     },
     subtitle1: {
       fontSize: '1rem',
       fontWeight: 400,
       lineHeight: 1.75,
       letterSpacing: '0.00938em',
-      color: '#5D6D7E'
+      color: '#1e3a8a'
     },
     subtitle2: {
       fontSize: '0.875rem',
       fontWeight: 500,
       lineHeight: 1.57,
       letterSpacing: '0.00714em',
-      color: '#5D6D7E'
+      color: '#1e3a8a'
     },
     body1: {
       fontSize: '1rem',
@@ -145,7 +145,7 @@ export const professionalTheme = createTheme({
       fontWeight: 400,
       lineHeight: 1.66,
       letterSpacing: '0.03333em',
-      color: '#95A5A6'
+      color: '#1e3a8a'
     },
     overline: {
       fontSize: '0.75rem',
@@ -153,7 +153,7 @@ export const professionalTheme = createTheme({
       lineHeight: 2.66,
       letterSpacing: '0.08333em',
       textTransform: 'uppercase' as const,
-      color: '#95A5A6'
+      color: '#1e3a8a'
     }
   },
   shape: {
@@ -164,7 +164,7 @@ export const professionalTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundColor: '#FFFFFF',
-          color: '#2C3E50',
+          color: '#d32f2f',
           boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
           borderBottom: '1px solid #E5E8E8'
         }
@@ -266,7 +266,7 @@ export const professionalTheme = createTheme({
               borderColor: '#BDC3C7'
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#2C3E50',
+              borderColor: '#d32f2f',
               borderWidth: '2px'
             }
           }
@@ -285,7 +285,7 @@ export const professionalTheme = createTheme({
             borderColor: '#BDC3C7'
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#2C3E50',
+            borderColor: '#d32f2f',
             borderWidth: '2px'
           }
         }
@@ -306,11 +306,11 @@ export const professionalTheme = createTheme({
     MuiSlider: {
       styleOverrides: {
         root: {
-          color: '#2C3E50',
+          color: '#d32f2f',
           height: 6
         },
         thumb: {
-          backgroundColor: '#2C3E50',
+          backgroundColor: '#d32f2f',
           border: '2px solid #FFFFFF',
           boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
           '&:hover': {
@@ -318,7 +318,7 @@ export const professionalTheme = createTheme({
           }
         },
         track: {
-          backgroundColor: '#2C3E50',
+          backgroundColor: '#d32f2f',
           border: 'none'
         },
         rail: {

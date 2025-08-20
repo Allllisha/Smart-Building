@@ -17,7 +17,7 @@ import { errorHandler } from './middleware/error.middleware'
 dotenv.config({ path: '../.env' })
 
 const app = express()
-const PORT = process.env.API_PORT || 8001
+const PORT = process.env.WEBSITES_PORT || process.env.PORT || process.env.API_PORT || 8000
 
 // ミドルウェア
 app.use(helmet())
@@ -26,10 +26,14 @@ app.use(cors({
   credentials: true,
 }))
 app.use(morgan('dev'))
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // ヘルスチェック
+app.get('/', (_, res) => {
+  res.json({ status: 'ok', service: 'Smart Building Planner API', timestamp: new Date().toISOString() })
+})
+
 app.get('/health', (_, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })

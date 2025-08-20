@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { Project } from '@/types/project'
 import { projectApi } from '@/api/projectApi'
 
@@ -19,13 +20,15 @@ interface ProjectState {
   setError: (error: string | null) => void
 }
 
-export const useProjectStore = create<ProjectState>((set) => ({
-  projects: [],
-  currentProject: null,
-  isLoading: false,
-  error: null,
+export const useProjectStore = create<ProjectState>()(
+  persist(
+    (set) => ({
+      projects: [],
+      currentProject: null,
+      isLoading: false,
+      error: null,
 
-  setProjects: (projects) => set({ projects }),
+      setProjects: (projects) => set({ projects }),
   
   setCurrentProject: (project) => set({ currentProject: project }),
   
@@ -120,4 +123,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   
   setError: (error) => set({ error }),
-}))
+    }),
+    {
+      name: 'project-storage', // localStorageのキー名
+      partialize: (state) => ({ 
+        // previewImageを除外してlocalStorageに保存（データベースから取得するため）
+        projects: state.projects.map(p => ({ ...p, previewImage: undefined })),
+        currentProject: state.currentProject ? { ...state.currentProject, previewImage: undefined } : null
+      }), // 永続化するプロパティを指定
+    }
+  )
+)

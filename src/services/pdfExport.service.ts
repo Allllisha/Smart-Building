@@ -310,7 +310,7 @@ export const generateEstimationPDF = async (
     
     
     <div class="footer">
-      1 / 4 | Smart Building Planner - AI Estimation System
+      1 / 4 | 積算次長 - AI Estimation System
     </div>
   </div>
   
@@ -372,7 +372,7 @@ export const generateEstimationPDF = async (
     </table>
     
     <div class="footer">
-      2 / 4 | Smart Building Planner - AI Estimation System
+      2 / 4 | 積算次長 - AI Estimation System
     </div>
   </div>
   
@@ -464,7 +464,7 @@ export const generateEstimationPDF = async (
     </table>
     
     <div class="footer">
-      3 / 4 | Smart Building Planner - AI Estimation System
+      3 / 4 | 積算次長 - AI Estimation System
     </div>
   </div>
   
@@ -496,7 +496,7 @@ export const generateEstimationPDF = async (
     </div>
     
     <div class="footer">
-      4 / 4 | Smart Building Planner - AI Estimation System
+      4 / 4 | 積算次長 - AI Estimation System
     </div>
   </div>
 </body>

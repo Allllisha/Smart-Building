@@ -11,10 +11,7 @@ import {
   Select,
   MenuItem,
   Button,
-  Alert,
   IconButton,
-  Chip,
-  LinearProgress,
   Card,
   CardContent,
   Table,
@@ -26,9 +23,6 @@ import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   LightMode as SunIcon,
-  CheckCircle as CheckIcon,
-  Error as ErrorIcon,
-  Info as InfoIcon,
   Architecture as ArchitectureIcon,
   Assessment as AnalysisIcon,
   Timeline as TimelineIcon,
@@ -36,6 +30,7 @@ import {
 } from '@mui/icons-material'
 import Scene3DWithTerrain from '@/components/Scene3DWithTerrain'
 import { useProjectStore } from '@/store/projectStore'
+import { projectApi } from '@/api/projectApi'
 import { shadowRegulationCheckService, VolumeCheckResult } from '@/services/shadowRegulationCheck.service'
 import { format } from 'date-fns'
 
@@ -235,15 +230,24 @@ export default function SimulationView() {
 
   // 3Dビューのスクリーンショットを受け取って保存
   const handleScreenshotReady = async (screenshot: string) => {
-    if (!currentProject) return
+    if (!currentProject) {
+      console.error('currentProjectが存在しません')
+      return
+    }
     
     try {
-      console.log('📸 スクリーンショットを受け取りました、プロジェクトに保存中...')
+      console.log('📸 スクリーンショットを受け取りました')
+      console.log('Project ID:', currentProject.id)
+      console.log('Screenshot size:', screenshot.length, 'characters')
       
-      // プロジェクトストアを更新
+      // データベースに保存
+      await projectApi.updatePreviewImage(currentProject.id, screenshot)
+      
+      // ローカルのストアも更新（表示用）
       updateProject(currentProject.id, { previewImage: screenshot })
       
-      console.log('✅ スクリーンショットをプロジェクトに保存しました')
+      console.log('✅ スクリーンショットをデータベースに保存しました')
+      console.log('Updated project:', currentProject.name)
     } catch (error) {
       console.error('スクリーンショットの保存に失敗:', error)
     }
@@ -311,7 +315,7 @@ export default function SimulationView() {
             <ArchitectureIcon sx={{ fontSize: 32, color: 'primary.main' }} />
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 300, color: 'primary.main', mb: 0.5 }}>
-                3D Simulation
+                3Dシミュレーション
               </Typography>
               <Typography variant="subtitle1" sx={{ color: 'text.secondary' }}>
                 {currentProject.name}
@@ -320,42 +324,42 @@ export default function SimulationView() {
           </Box>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               onClick={() => navigate(`/project/${currentProject.id}?step=0`)}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
+              sx={{ textTransform: 'none', fontWeight: 500, bgcolor: '#2C3E50', '&:hover': { bgcolor: '#1a252f' } }}
             >
               1. 敷地情報
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               onClick={() => navigate(`/project/${currentProject.id}?step=1`)}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
+              sx={{ textTransform: 'none', fontWeight: 500, bgcolor: '#2C3E50', '&:hover': { bgcolor: '#1a252f' } }}
             >
               2. 面積・規制情報
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               onClick={() => navigate(`/project/${currentProject.id}?step=2`)}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
+              sx={{ textTransform: 'none', fontWeight: 500, bgcolor: '#2C3E50', '&:hover': { bgcolor: '#1a252f' } }}
             >
               3. 建物情報設定
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               onClick={() => navigate(`/project/${currentProject.id}?step=3`)}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
+              sx={{ textTransform: 'none', fontWeight: 500, bgcolor: '#2C3E50', '&:hover': { bgcolor: '#1a252f' } }}
             >
               4. 設計概要
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               onClick={() => navigate(`/project/${currentProject.id}?step=4`)}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
+              sx={{ textTransform: 'none', fontWeight: 500, bgcolor: '#2C3E50', '&:hover': { bgcolor: '#1a252f' } }}
             >
               5. クライアント情報
             </Button>
@@ -458,9 +462,9 @@ export default function SimulationView() {
             {/* 日影シミュレーション */}
             <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: 'background.paper' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <TimelineIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-                <Typography variant="h6" sx={{ fontWeight: 500, color: 'primary.main' }}>
-                  Shadow Analysis
+                <TimelineIcon sx={{ mr: 1.5, color: '#2C3E50' }} />
+                <Typography variant="h6" sx={{ fontWeight: 500, color: '#2C3E50' }}>
+                  日影解析
                 </Typography>
               </Box>
               
@@ -593,9 +597,9 @@ export default function SimulationView() {
             {/* 建物情報 - 設計概要プレビューと同じレイアウト */}
             <Paper elevation={2} sx={{ p: 3, bgcolor: 'background.paper' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <ArchitectureIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-                <Typography variant="h6" sx={{ fontWeight: 500, color: 'primary.main' }}>
-                  Building Information
+                <ArchitectureIcon sx={{ mr: 1.5, color: '#2C3E50' }} />
+                <Typography variant="h6" sx={{ fontWeight: 500, color: '#2C3E50' }}>
+                  建物情報
                 </Typography>
               </Box>
               
@@ -668,8 +672,8 @@ export default function SimulationView() {
                         <TableCell sx={{ padding: '3px 6px', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}>
                             <span>
-                              {currentProject.siteInfo.siteArea && currentProject.buildingInfo.totalFloorArea
-                                ? `${((currentProject.buildingInfo.totalFloorArea / currentProject.siteInfo.siteArea) * 100).toFixed(1)}%`
+                              {currentProject.siteInfo.siteArea && currentProject.buildingInfo.effectiveArea
+                                ? `${((currentProject.buildingInfo.effectiveArea / currentProject.siteInfo.siteArea) * 100).toFixed(1)}%`
                                 : '-%'}
                             </span>
                             <span>≦</span>

@@ -421,7 +421,7 @@ export default function EstimationView() {
     return (
       <Container maxWidth="lg" sx={{ py: 4, backgroundColor: 'background.default', minHeight: '100vh' }}>
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom sx={{ color: '#2C3E50' }}>
             見積もりが未実行です
           </Typography>
           
@@ -446,7 +446,7 @@ export default function EstimationView() {
             </>
           ) : (
             <>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 2, color: '#2C3E50' }}>
                 見積もりを実行するには、以下の項目を入力してください：
               </Typography>
               

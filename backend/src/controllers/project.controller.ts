@@ -52,7 +52,7 @@ const createProjectSchema = z.object({
 export class ProjectController {
   static async getAll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const projects = await ProjectModel.findAll(req.user!.id)
+      const projects = await ProjectModel.findAll()
       
       // 各プロジェクトの関連データを取得
       const formattedProjects = await Promise.all(projects.map(async (p) => {
@@ -67,6 +67,7 @@ export class ProjectController {
         return {
         id: p.id,
         name: p.name,
+        previewImage: p.preview_image, // preview_imageを追加
         createdAt: p.created_at,
         updatedAt: p.updated_at,
         location: {
@@ -167,7 +168,7 @@ export class ProjectController {
   static async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params
-      const project = await ProjectModel.findById(id, req.user!.id)
+      const project = await ProjectModel.findById(id)
 
       if (!project) {
         throw new AppError(404, 'Project not found')
@@ -193,6 +194,7 @@ export class ProjectController {
       const formattedProject = {
         id: project.id,
         name: project.name,
+        previewImage: project.preview_image, // preview_imageを追加
         createdAt: project.created_at,
         updatedAt: project.updated_at,
         location: {
@@ -296,7 +298,7 @@ export class ProjectController {
       // API形式からDB形式に変換
       const projectData = {
         name: validatedData.name,
-        user_id: req.user!.id,
+        user_id: 'default_user',  // 認証なしのため固定値
         location_address: validatedData.location?.address || null,
         location_latitude: validatedData.location?.latitude || null,
         location_longitude: validatedData.location?.longitude || null,
@@ -336,6 +338,7 @@ export class ProjectController {
         data: {
           id: project.id,
           name: project.name,
+          previewImage: project.preview_image, // preview_imageを追加
           createdAt: project.created_at,
           updatedAt: project.updated_at,
         },
@@ -410,7 +413,7 @@ export class ProjectController {
         if (s.duration !== undefined) dbUpdates.construction_duration = s.duration
       }
 
-      const updatedProject = await ProjectModel.update(id, req.user!.id, dbUpdates)
+      const updatedProject = await ProjectModel.update(id, dbUpdates)
 
       if (!updatedProject) {
         throw new AppError(404, 'Project not found')
@@ -457,7 +460,7 @@ export class ProjectController {
   static async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params
-      const deleted = await ProjectModel.delete(id, req.user!.id)
+      const deleted = await ProjectModel.delete(id)
 
       if (!deleted) {
         throw new AppError(404, 'Project not found')
@@ -466,6 +469,36 @@ export class ProjectController {
       res.json({
         success: true,
         message: 'Project deleted successfully',
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  static async updatePreviewImage(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params
+      const { previewImage } = req.body
+
+      if (!previewImage) {
+        throw new AppError(400, 'Preview image is required')
+      }
+
+      // 画像データのサイズチェック（最大10MB）
+      const imageSizeInBytes = Buffer.byteLength(previewImage, 'base64')
+      if (imageSizeInBytes > 10 * 1024 * 1024) {
+        throw new AppError(400, 'Image size exceeds 10MB limit')
+      }
+
+      const project = await ProjectModel.updatePreviewImage(id, previewImage)
+
+      if (!project) {
+        throw new AppError(404, 'Project not found')
+      }
+
+      res.json({
+        success: true,
+        message: 'Preview image updated successfully',
       })
     } catch (error) {
       next(error)

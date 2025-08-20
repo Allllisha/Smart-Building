@@ -55,12 +55,72 @@ export default function Scene3DWithTerrain({
     )
   }
 
-  // 3D地形マップの初期化
+  // 3D地形マップの初期化と管理
   useEffect(() => {
-    if (isTerrainMode && mapContainerRef.current && !mapInitialized) {
-      initializeTerrain()
+    if (!isTerrainMode || !mapContainerRef.current) return
+
+    const initMap = async () => {
+      try {
+        console.log('🗺️ 3D地形マップを初期化中...')
+        console.log('Project ID:', project.id)
+        console.log('Project previewImage status:', project.previewImage ? 'exists' : 'not exists')
+        
+        await mapbox3dService.initializeMap(mapContainerRef.current!, project)
+        setMapInitialized(true)
+        console.log('✅ 3D地形マップ初期化完了')
+        
+        // プロジェクトにpreviewImageがない場合のみスクリーンショットを撮影
+        const needsScreenshot = !project.previewImage || project.previewImage === ''
+        const shouldTakeScreenshot = onScreenshotReady && needsScreenshot
+        
+        if (shouldTakeScreenshot) {
+          console.log('📸 スクリーンショットを撮影します')
+          console.log('Current project ID:', project.id)
+          console.log('Current previewImage:', project.previewImage)
+          
+          setTimeout(() => {
+            console.log('🏠 スクリーンショット撮影前にホームポジションに移動')
+            mapbox3dService.goToHome()
+            
+            setTimeout(() => {
+              const screenshot = mapbox3dService.captureScreenshot()
+              if (screenshot) {
+                console.log('📸 ホームポジションから地形モードのスクリーンショットを撮影しました')
+                console.log('Screenshot length:', screenshot.length)
+                onScreenshotReady(screenshot)
+                console.log('📸 onScreenshotReady コールバックを呼び出しました')
+              } else {
+                console.error('スクリーンショットの撮影に失敗しました')
+              }
+            }, 2000)
+          }, 2000)
+        } else if (project.previewImage && project.previewImage !== '') {
+          console.log('✅ プレビュー画像が既に存在するため、スクリーンショット撮影をスキップします')
+          console.log('Existing previewImage length:', project.previewImage.length)
+        } else if (!onScreenshotReady) {
+          console.log('onScreenshotReady コールバックが設定されていません')
+        }
+      } catch (error) {
+        console.error('3D地形マップの初期化に失敗:', error)
+        setIsTerrainMode(false)
+      }
     }
-  }, [isTerrainMode, project])
+
+    // 既存のマップを破棄してから新しく初期化
+    mapbox3dService.dispose()
+    setMapInitialized(false)
+    
+    // 少し待ってから初期化（DOMの更新を待つ）
+    const timer = setTimeout(() => {
+      initMap()
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      mapbox3dService.dispose()
+      setMapInitialized(false)
+    }
+  }, [project.id, isTerrainMode])
 
   // 時間変更時の太陽位置更新（より頻繁に）
   useEffect(() => {
@@ -89,21 +149,6 @@ export default function Scene3DWithTerrain({
     }
   }, [project.buildingInfo.maxHeight, isTerrainMode, mapInitialized])
 
-  const initializeTerrain = async () => {
-    if (!mapContainerRef.current) return
-
-    try {
-      console.log('🗺️ 3D地形マップを初期化中...')
-      await mapbox3dService.initializeMap(mapContainerRef.current, project)
-      setMapInitialized(true)
-      console.log('✅ 3D地形マップ初期化完了')
-    } catch (error) {
-      console.error('3D地形マップの初期化に失敗:', error)
-      // フォールバックとして通常の3Dビューを表示
-      setIsTerrainMode(false)
-    }
-  }
-
   const handleTerrainToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newTerrainMode = event.target.checked
     
@@ -121,12 +166,6 @@ export default function Scene3DWithTerrain({
     }
   }
 
-  // クリーンアップ
-  useEffect(() => {
-    return () => {
-      mapbox3dService.dispose()
-    }
-  }, [])
 
   // 建物情報が不足している場合のメッセージ表示
   if (!hasValidBuildingInfo(project)) {
@@ -196,13 +235,12 @@ export default function Scene3DWithTerrain({
             top: 16, 
             left: 16, 
             zIndex: 1000,
-            bgcolor: 'primary.main',
-            color: 'white',
+            bgcolor: '#2C3E50',
             borderRadius: 1,
             px: 2,
             py: 1
           }}>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'white' }}>
               {mapInitialized ? '3D TERRAIN ACTIVE' : 'LOADING TERRAIN...'}
             </Typography>
           </Box>
@@ -242,13 +280,12 @@ export default function Scene3DWithTerrain({
               <Tooltip title="建物住所に戻る">
                 <IconButton
                   onClick={() => mapbox3dService.goToHome()}
-                  color="secondary"
                   size="small"
                   sx={{ 
-                    bgcolor: 'secondary.main', 
+                    bgcolor: '#2C3E50', 
                     color: 'white',
                     '&:hover': { 
-                      bgcolor: 'secondary.dark',
+                      bgcolor: '#1a252f',
                       transform: 'scale(1.05)'
                     },
                     transition: 'all 0.2s ease-in-out'

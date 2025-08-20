@@ -1,11 +1,8 @@
 import React from 'react'
 import {
-  Paper,
   Table,
   TableBody,
   TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
   Typography,
   Box,
@@ -32,9 +29,9 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
   const unitTypeSummary = project.buildingInfo.unitTypes?.map((unitType, index) => {
     console.log('unitType:', unitType)
     return {
-      type: (unitType?.typeName && unitType.typeName.trim()) || (unitType?.name && unitType.name.trim()) || `${String.fromCharCode(65 + index)}type`,
-      area: typeof unitType?.exclusiveArea === 'number' ? unitType.exclusiveArea : (typeof unitType?.area === 'number' ? unitType.area : 0),
-      count: typeof unitType?.units === 'number' ? unitType.units : (typeof unitType?.count === 'number' ? unitType.count : 0),
+      type: (unitType?.typeName && unitType.typeName.trim()) || `${String.fromCharCode(65 + index)}type`,
+      area: typeof unitType?.exclusiveArea === 'number' ? unitType.exclusiveArea : 0,
+      count: typeof unitType?.units === 'number' ? unitType.units : 0,
       totalArea: 0 // 後で計算
     }
   }) || []
@@ -149,7 +146,8 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
           textAlign: 'center',
           fontSize: '0.8rem',
           p: 1,
-          m: 0
+          m: 0,
+          color: '#2C3E50'
         }}>
           設計概要
         </Typography>
@@ -235,8 +233,8 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
               <TableCell sx={cellStyle}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}>
                   <span>
-                    {project.siteInfo.siteArea && totalFloorArea
-                      ? `${((totalFloorArea / project.siteInfo.siteArea) * 100).toFixed(1)}%`
+                    {project.siteInfo.siteArea && project.buildingInfo.effectiveArea
+                      ? `${((project.buildingInfo.effectiveArea / project.siteInfo.siteArea) * 100).toFixed(1)}%`
                       : '-%'}
                   </span>
                   <span>≦</span>
@@ -256,7 +254,8 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
           textAlign: 'center',
           fontSize: '0.8rem',
           p: 1,
-          m: 0
+          m: 0,
+          color: '#2C3E50'
         }}>
           建物概要
         </Typography>
@@ -311,7 +310,12 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
                 <EditableValue
                   value={project.parkingPlan?.parkingSpaces || 0}
                   onUpdate={(value) => onProjectUpdate({
-                    parkingPlan: { ...project.parkingPlan, parkingSpaces: Number(value) }
+                    parkingPlan: { 
+                      parkingSpaces: Number(value),
+                      bicycleSpaces: project.parkingPlan?.bicycleSpaces || 0,
+                      motorcycleSpaces: project.parkingPlan?.motorcycleSpaces || 0,
+                      greenArea: project.parkingPlan?.greenArea || 0
+                    }
                   })}
                   type="number"
                   suffix="台"
@@ -332,7 +336,8 @@ export const DesignSummaryCompact: React.FC<DesignSummaryCompactProps> = ({
             textAlign: 'center',
             fontSize: '0.8rem',
             p: 1,
-            m: 0
+            m: 0,
+            color: '#2C3E50'
           }}>
             面積表
           </Typography>

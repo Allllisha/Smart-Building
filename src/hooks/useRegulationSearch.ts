@@ -477,7 +477,7 @@ export function useRegulationSearch(
 
     // 行政指導情報
     if (searchTypes.includes('administrative') && result.administrativeGuidance) {
-      const guidanceData = result.administrativeGuidance.map((item, index) => {
+      const guidanceData = result.administrativeGuidance.map((item: any, index) => {
         // AIから返される新しい構造に対応（日本語キーも含む）
         if (typeof item === 'object' && item !== null) {
           // 日本語キーの場合
@@ -518,8 +518,8 @@ export function useRegulationSearch(
           // レガシー形式の処理
           return {
             id: `guidance-${Date.now()}-${index}`,
-            name: String(item.name || item),
-            description: String(item.description || ''),
+            name: String((item as any).name || item),
+            description: String((item as any).description || ''),
             isRequired: false
           };
         }

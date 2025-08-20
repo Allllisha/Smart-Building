@@ -6,9 +6,9 @@ const path = require('path');
 const pool = new Pool({
   host: 'smart-building-planner-db.postgres.database.azure.com',
   port: 5432,
-  database: 'smartbuildingplanner',
+  database: 'smart_building_planner',
   user: 'dbadmin',
-  password: 'NewPassword2025\\!',
+  password: 'SmartBuilding2025',
   ssl: {
     rejectUnauthorized: false
   }
@@ -31,7 +31,9 @@ async function runAllMigrations() {
       '011_add_administrative_guidance_details.sql',
       '012_cleanup_object_object_data.sql',
       '013_add_construction_duration.sql',
-      '015_fix_shadow_regulations_schema.sql'
+      '015_fix_shadow_regulations_schema.sql',
+      '016_add_preview_image.sql',
+      '017_add_user_id.sql'
     ];
     
     for(const migrationFile of migrations) {

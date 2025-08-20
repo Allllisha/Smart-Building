@@ -65,7 +65,8 @@ export class Mapbox3DService {
       zoom: 18, // より詳細なズームレベル
       pitch: 85, // ほぼ地上からの視点
       bearing: 0,
-      antialias: true
+      antialias: true,
+      preserveDrawingBuffer: true // スクリーンショット撮影のために必要
     })
 
     // 地形データを追加
@@ -714,16 +715,59 @@ export class Mapbox3DService {
   goToHome() {
     if (!this.map || !this.homePosition) return
 
-    // 建物が確実に見える視点に調整
+    // 建物が確実に見える視点に調整（サムネイル用の最適な角度）
     this.map.easeTo({
       center: [this.homePosition.lng, this.homePosition.lat],
-      zoom: 17, // 少し引いて建物全体が見えるように
-      pitch: 45, // 斜め上から見下ろす角度
-      bearing: 45, // 少し角度をつけて立体感を出す
+      zoom: 17.5, // 建物全体が画面に収まる適切なズームレベル
+      pitch: 60, // 建物の高さと形状がよく分かる角度
+      bearing: -45, // 北西から見る角度（建物の2面が見える）
       duration: 1500
     })
     
-    console.log('🏠 ホーム位置に戻る:', this.homePosition)
+    console.log('🏠 ホーム位置に戻る（サムネイル撮影用）:', this.homePosition)
+  }
+
+  /**
+   * スクリーンショットを撮影
+   */
+  captureScreenshot(): string | null {
+    if (!this.map) {
+      console.error('Map is not initialized')
+      return null
+    }
+
+    try {
+      // Mapboxのcanvasを取得
+      const canvas = this.map.getCanvas()
+      console.log('Canvas element:', canvas)
+      console.log('Canvas size:', canvas.width, 'x', canvas.height)
+      
+      // preserveDrawingBufferの確認
+      const gl = canvas.getContext('webgl') || canvas.getContext('webgl2')
+      if (gl) {
+        const preserveDrawingBuffer = gl.getContextAttributes()?.preserveDrawingBuffer
+        console.log('preserveDrawingBuffer:', preserveDrawingBuffer)
+      }
+      
+      // Base64エンコードされた画像データを取得（JPEGで圧縮率を高める）
+      const screenshot = canvas.toDataURL('image/jpeg', 0.3)
+      
+      if (!screenshot || screenshot === 'data:,') {
+        console.error('Screenshot is empty or invalid')
+        return null
+      }
+      
+      console.log('📸 Mapbox 3Dビューのスクリーンショットを撮影しました')
+      console.log('Screenshot data URL length:', screenshot.length)
+      return screenshot
+    } catch (error) {
+      console.error('スクリーンショットの撮影に失敗:', error)
+      console.error('Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      })
+      return null
+    }
   }
 
   /**

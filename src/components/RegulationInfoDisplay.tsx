@@ -5,22 +5,9 @@ import {
   Button,
   CircularProgress,
   Alert,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  Grid,
-  TextField,
-  IconButton,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Chip
+  TextField
 } from '@mui/material';
 import { 
-  Refresh as RefreshIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon,
   Edit as EditIcon,
   AutoFixHigh as AutoIcon
 } from '@mui/icons-material';
@@ -47,28 +34,25 @@ interface RegulationInfoDisplayProps {
 
 export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
   searchState,
-  administrativeGuidance,
-  administrativeGuidanceDetails,
+  administrativeGuidance: _administrativeGuidance,
+  administrativeGuidanceDetails: _administrativeGuidanceDetails,
   shadowRegulation: projectShadowRegulation,
   zoningType,
   floorAreaRatio,
   lat,
   lng,
-  onRefreshShadow,
-  onRefreshAdminGuidance,
-  onAdminGuidanceChange,
+  onRefreshShadow: _onRefreshShadow,
+  onRefreshAdminGuidance: _onRefreshAdminGuidance,
+  onAdminGuidanceChange: _onAdminGuidanceChange,
   onShadowRegulationChange,
-  onAddCustomGuidance,
-  onRemoveCustomGuidance
+  onAddCustomGuidance: _onAddCustomGuidance,
+  onRemoveCustomGuidance: _onRemoveCustomGuidance
 }) => {
-  const { shadowRegulation, administrativeGuidance: adminGuidanceState } = searchState;
+  const { shadowRegulation } = searchState;
+  // const { administrativeGuidance: adminGuidanceState } = searchState; // 現在未使用
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<Partial<ShadowRegulation>>({});
-  const [showAddGuidance, setShowAddGuidance] = useState(false);
-  const [newGuidanceName, setNewGuidanceName] = useState('');
-  const [newGuidanceDescription, setNewGuidanceDescription] = useState('');
   const [autoCalculatedShadow, setAutoCalculatedShadow] = useState<Partial<ShadowRegulation> | null>(null);
-  const [previousZoningType, setPreviousZoningType] = useState<string>('');
   
   // 用途地域と容積率から日影規制の参考値を自動計算
   useEffect(() => {
@@ -132,178 +116,25 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
     }
   };
   
-  // 行政指導・要綱の編集状態
-  const [isEditingAdminGuidance, setIsEditingAdminGuidance] = useState(false);
-  const [editingAdminGuidance, setEditingAdminGuidance] = useState<any[]>([]);
 
   // 表示用の行政指導データを作成
-  const displayAdminGuidance = useMemo(() => {
-    const aiItems = adminGuidanceState.data || [];
-    const manualItems = administrativeGuidanceDetails || [];
-    
-    console.log('🔍 AI取得データの確認:', {
-      aiItems,
-      type: typeof aiItems,
-      isArray: Array.isArray(aiItems),
-      length: aiItems?.length,
-      stringified: JSON.stringify(aiItems, null, 2)
-    });
-    console.log('🔍 手動データの確認:', {
-      manualItems,
-      type: typeof manualItems,
-      isArray: Array.isArray(manualItems),
-      length: manualItems?.length
-    });
-    
-    // 手動データの詳細も確認
-    if (manualItems && manualItems.length > 0) {
-      manualItems.forEach((item, index) => {
-        console.log(`🔍 手動項目${index}の詳細:`, {
-          item,
-          name: item.name,
-          nameType: typeof item.name
-        });
-      });
-    }
-    
-    // 各項目の詳細も確認
-    if (aiItems && aiItems.length > 0) {
-      aiItems.forEach((item, index) => {
-        console.log(`🔍 AI項目${index}の詳細:`, {
-          item,
-          type: typeof item,
-          keys: typeof item === 'object' && item !== null ? Object.keys(item) : 'not object',
-          stringified: JSON.stringify(item),
-          directProps: typeof item === 'object' && item !== null ? {
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            isRequired: item.isRequired
-          } : 'not object'
-        });
-      });
-    }
-    
-    // AIデータの正規化処理
-    const normalizedAiItems = aiItems.map((item, index) => {
-      const uniqueId = `ai_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      if (typeof item === 'string') {
-        return {
-          id: uniqueId,
-          name: item,
-          description: '',
-          isRequired: false
-        };
-      } else if (item && typeof item === 'object') {
-        // item.nameが[object Object]の場合、一般的な行政指導項目名にフォールバック
-        let displayName = item.name;
-        if (displayName === '[object Object]' || typeof displayName === 'object') {
-          // インデックスに基づいて一般的な行政指導項目名を設定
-          const commonNames = [
-            '住環境の整備に関する条例',
-            '中高層建築物等の条例', 
-            '雨水流出抑制施設の設置に関する指導要綱',
-            '緑化指導',
-            '建築指導要綱',
-            '都市計画法開発行為',
-            '景観条例・景観計画',
-            '福祉環境整備要綱'
-          ];
-          displayName = commonNames[index] || `行政指導項目${index + 1}`;
-        }
-        
-        return {
-          id: item.id || uniqueId,
-          name: displayName,
-          description: item.description || '',
-          isRequired: item.isRequired || false,
-          applicableConditions: item.applicableConditions || ''
-        };
-      } else {
-        return {
-          id: uniqueId,
-          name: String(item) || 'Unknown',
-          description: '',
-          isRequired: false
-        };
-      }
-    });
-    
-    // 重複を除去（nameベースで）
-    const allItems = [...normalizedAiItems, ...manualItems];
-    const uniqueItems = allItems.filter((item, index, arr) => 
-      arr.findIndex(i => i.name === item.name) === index
-    );
-    
-    console.log('🔍 最終表示データ:', uniqueItems);
-    return uniqueItems;
-  }, [adminGuidanceState.data, administrativeGuidanceDetails]);
-
-  // 行政指導・要綱の編集開始
-  const startAdminGuidanceEdit = () => {
-    setEditingAdminGuidance(displayAdminGuidance.map(item => ({
-      id: item.id || `manual_${Date.now()}_${Math.random()}`,
-      name: item.name || '',
-      description: item.description || '',
-      isRequired: item.isRequired || false,
-      applicableConditions: item.applicableConditions || ''
-    })));
-    setIsEditingAdminGuidance(true);
-  };
-
-  // 行政指導・要綱の編集保存
-  const saveAdminGuidanceChanges = () => {
-    // TODO: 行政指導の詳細を保存する処理を追加
-    console.log('保存する行政指導データ:', editingAdminGuidance);
-    setIsEditingAdminGuidance(false);
-  };
-
-  // 行政指導・要綱の編集キャンセル
-  const cancelAdminGuidanceEdit = () => {
-    setIsEditingAdminGuidance(false);
-    setEditingAdminGuidance([]);
-  };
-
-  // 行政指導・要綱のフィールド変更
-  const handleAdminGuidanceFieldChange = (index: number, field: string, value: any) => {
-    const newItems = [...editingAdminGuidance];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setEditingAdminGuidance(newItems);
-  };
-
-  // 行政指導・要綱の項目追加
-  const addAdminGuidanceItem = () => {
-    const newItem = {
-      id: `manual_${Date.now()}_${Math.random()}`,
-      name: '',
-      description: '',
-      isRequired: false,
-      applicableConditions: ''
-    };
-    setEditingAdminGuidance([...editingAdminGuidance, newItem]);
-  };
-
-  // 行政指導・要綱の項目削除
-  const removeAdminGuidanceItem = (index: number) => {
-    const newItems = editingAdminGuidance.filter((_, i) => i !== index);
-    setEditingAdminGuidance(newItems);
-  };
+  // 現在は未使用ですが、今後の実装のために保持しています
+  // const displayAdminGuidance = useMemo(() => { ... }, [adminGuidanceState.data, _administrativeGuidanceDetails]);
 
   // 編集モードを開始する際に現在の値をセット
   const handleEditStart = () => {
     // プロジェクトの値を優先、なければAI取得値を使用
-    const projectValues = projectShadowRegulation || {};
-    const aiValues = shadowRegulation.data || {};
+    const projectValues = (projectShadowRegulation || {}) as Partial<ShadowRegulation>;
+    const aiValues = (shadowRegulation.data || {}) as any;
     
     // AI取得値のフィールド名をプロジェクトのフィールド名にマップ
     const mappedAiValues = {
-      targetArea: aiValues.targetArea || '',
-      targetBuilding: aiValues.targetBuildings || aiValues.targetBuilding || '',
-      measurementHeight: aiValues.measurementHeight ? Number(aiValues.measurementHeight) : 0,
-      measurementTime: aiValues.measurementTime || '',
-      allowedShadowTime5to10m: aiValues.range5to10m ? Number(aiValues.range5to10m) : 0,
-      allowedShadowTimeOver10m: aiValues.rangeOver10m ? Number(aiValues.rangeOver10m) : 0
+      targetArea: aiValues?.targetArea || '',
+      targetBuilding: aiValues?.targetBuildings || aiValues?.targetBuilding || '',
+      measurementHeight: aiValues?.measurementHeight ? Number(aiValues.measurementHeight) : 0,
+      measurementTime: aiValues?.measurementTime || '',
+      allowedShadowTime5to10m: aiValues?.range5to10m ? Number(aiValues.range5to10m) : 0,
+      allowedShadowTimeOver10m: aiValues?.rangeOver10m ? Number(aiValues.rangeOver10m) : 0
     };
     
     setEditValues({
@@ -349,43 +180,20 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
     
     // AI取得値をプロジェクトの形式にマップ
     if (shadowRegulation.data) {
-      const aiData = shadowRegulation.data;
+      const aiData = shadowRegulation.data as any;
       return {
-        targetArea: aiData.targetArea || '',
-        targetBuilding: aiData.targetBuildings || aiData.targetBuilding || '',
-        measurementHeight: aiData.measurementHeight ? Number(aiData.measurementHeight) : 0,
-        measurementTime: aiData.measurementTime || '',
-        allowedShadowTime5to10m: aiData.range5to10m ? Number(aiData.range5to10m) : 0,
-        allowedShadowTimeOver10m: aiData.rangeOver10m ? Number(aiData.rangeOver10m) : 0
+        targetArea: aiData?.targetArea || '',
+        targetBuilding: aiData?.targetBuildings || aiData?.targetBuilding || '',
+        measurementHeight: aiData?.measurementHeight ? Number(aiData.measurementHeight) : 0,
+        measurementTime: aiData?.measurementTime || '',
+        allowedShadowTime5to10m: aiData?.range5to10m ? Number(aiData.range5to10m) : 0,
+        allowedShadowTimeOver10m: aiData?.rangeOver10m ? Number(aiData.rangeOver10m) : 0
       };
     }
     
     return null;
   }, [isEditing, editValues, projectShadowRegulation, shadowRegulation.data, autoCalculatedShadow]);
 
-  // 行政指導の追加処理
-  const handleAddGuidance = () => {
-    if (!newGuidanceName.trim()) return;
-    
-    if (onAddCustomGuidance) {
-      onAddCustomGuidance({
-        name: newGuidanceName.trim(),
-        description: newGuidanceDescription.trim() || undefined
-      });
-    }
-    
-    // フォームをリセット
-    setNewGuidanceName('');
-    setNewGuidanceDescription('');
-    setShowAddGuidance(false);
-  };
-
-  // 行政指導の削除処理
-  const handleRemoveGuidance = (itemId: string) => {
-    if (onRemoveCustomGuidance) {
-      onRemoveCustomGuidance(itemId);
-    }
-  };
 
   return (
     <Box>
@@ -393,7 +201,7 @@ export const RegulationInfoDisplay: React.FC<RegulationInfoDisplayProps> = ({
       <Box>
         <Box sx={{ mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="h6" sx={{ color: 'primary.main', flex: 1, minWidth: 200 }}>
+            <Typography variant="h6" sx={{ color: '#2C3E50', flex: 1, minWidth: 200 }}>
               日影規制（参考値自動計算・編集可能）
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>

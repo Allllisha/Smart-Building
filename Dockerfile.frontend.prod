@@ -36,5 +36,9 @@ COPY --from=builder /app/public/web.config /usr/share/nginx/html/web.config
 
 EXPOSE 80
 
-# エントリーポイントを明示的に設定
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+# Azure Web Appの余分な引数を無視するためのスクリプトを作成
+RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
+    echo 'nginx -g "daemon off;"' >> /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

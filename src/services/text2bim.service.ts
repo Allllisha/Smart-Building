@@ -149,12 +149,12 @@ export class Text2BIMService {
         beamDepth = 0.5
         slabThickness = 0.18
         break
-      case '鉄骨造':
-        columnSpacing = 8.0 // 鉄骨は大スパン可能
+      case '鉄骨鉄筋コンクリート造':
+        columnSpacing = 8.0 // 鉄骨鉄筋は大スパン可能
         beamDepth = 0.8
         slabThickness = 0.15
         break
-      case '木造軸組工法':
+      case '木造':
         columnSpacing = 3.6 // 木造は柱間隔が狭い
         beamDepth = 0.3
         slabThickness = 0.24

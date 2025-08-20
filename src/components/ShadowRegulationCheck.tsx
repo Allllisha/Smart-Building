@@ -13,11 +13,10 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  useTheme,
   Tooltip,
   Card,
   CardContent,
-  Grid,
+  Grid
 } from '@mui/material'
 import {
   CheckCircle as CheckCircleIcon,
@@ -38,7 +37,7 @@ interface ShadowRegulationCheckProps {
 }
 
 export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ project }) => {
-  const theme = useTheme()
+  // const theme = useTheme() // 現在未使用
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -127,8 +126,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
         console.log('🏗️ ShadowRegulationCheck: プロジェクトデータ確認:', {
           siteArea: project?.siteInfo?.siteArea,
           buildingCoverage: project?.siteInfo?.buildingCoverage,
-          floorAreaRatio: project?.siteInfo?.floorAreaRatio,
-          roadWidth: project?.siteInfo?.roadWidth
+          floorAreaRatio: project?.siteInfo?.floorAreaRatio
         })
         
         // 日影規制チェックを実行（建物情報なしでも動作するように修正）
@@ -220,7 +218,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
         <Box>
           <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
             <SunIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-            <Typography variant="h5" fontWeight="bold">
+            <Typography variant="h5" fontWeight="bold" sx={{ color: '#2C3E50' }}>
               日影規制チェック結果
             </Typography>
           </Stack>
@@ -258,7 +256,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
 
         {/* 詳細情報 */}
         <Box>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2C3E50' }}>
             規制詳細
           </Typography>
           
@@ -267,7 +265,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
                 <BusinessIcon color="primary" />
-                <Typography variant="subtitle1" fontWeight="600">
+                <Typography variant="subtitle1" fontWeight="600" sx={{ color: '#2C3E50' }}>
                   チェックに使用する用途地域: {project.siteInfo.shadowRegulation?.targetArea || project.siteInfo.zoningType || '未設定'}
                 </Typography>
               </Stack>
@@ -292,7 +290,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
                   <RulerIcon color="primary" />
-                  <Typography variant="subtitle1" fontWeight="600">
+                  <Typography variant="subtitle1" fontWeight="600" sx={{ color: '#2C3E50' }}>
                     日影規制値（チェックに使用される値）
                   </Typography>
                 </Stack>
@@ -452,7 +450,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
                   </Stack>
                   
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="caption" color="text.secondary">設定値（使用中）</Typography>
                       <Typography variant="body2">
                         対象地域: {project.siteInfo.shadowRegulation.targetArea || '-'}<br />
@@ -460,7 +458,7 @@ export const ShadowRegulationCheck: React.FC<ShadowRegulationCheckProps> = ({ pr
                         10m超: {project.siteInfo.shadowRegulation.allowedShadowTimeOver10m}時間
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="caption" color="text.secondary">参考値（推奨）</Typography>
                       <Typography variant="body2">
                         対象地域: {referenceValues.targetArea}<br />

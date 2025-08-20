@@ -10,12 +10,8 @@ const api = axios.create({
   },
 })
 
-// リクエストインターセプター（認証トークン付加）
+// リクエストインターセプター
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
   return config
 })
 
@@ -47,5 +43,10 @@ export const projectApi = {
   // プロジェクト削除
   async delete(id: string): Promise<void> {
     await api.delete(`/projects/${id}`)
+  },
+
+  // プレビュー画像更新
+  async updatePreviewImage(id: string, previewImage: string): Promise<void> {
+    await api.put(`/projects/${id}/preview-image`, { previewImage })
   },
 }

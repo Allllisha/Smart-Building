@@ -38,6 +38,7 @@ export interface ProjectDB {
   construction_completion_date: Date | null
   construction_duration: number | null
   special_notes: string | null
+  preview_image: string | null
 }
 
 export interface UnitTypeDB {
@@ -93,10 +94,10 @@ export interface AdministrativeGuidanceDetailDB {
 }
 
 export class ProjectModel {
-  static async findAll(userId: string): Promise<ProjectDB[]> {
+  static async findAll(): Promise<ProjectDB[]> {
     const result = await query(
-      'SELECT * FROM projects WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
+      'SELECT * FROM projects ORDER BY created_at DESC',
+      []
     )
     return result.rows
   }
@@ -213,10 +214,10 @@ export class ProjectModel {
     }
   }
 
-  static async findById(id: string, userId: string): Promise<ProjectDB | null> {
+  static async findById(id: string): Promise<ProjectDB | null> {
     const result = await query(
-      'SELECT * FROM projects WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'SELECT * FROM projects WHERE id = $1',
+      [id]
     )
     return result.rows[0] || null
   }
@@ -278,7 +279,7 @@ export class ProjectModel {
     return result.rows[0]
   }
 
-  static async update(id: string, userId: string, updates: Partial<ProjectDB>): Promise<ProjectDB | null> {
+  static async update(id: string, updates: Partial<ProjectDB>): Promise<ProjectDB | null> {
     const fields: string[] = []
     const values: any[] = []
     let paramCount = 1
@@ -295,27 +296,35 @@ export class ProjectModel {
       // フィールドが空の場合でも、updated_atを更新する
       const result = await query(
         `UPDATE projects SET updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $1 AND user_id = $2 RETURNING *`,
-        [id, userId]
+         WHERE id = $1 RETURNING *`,
+        [id]
       )
       return result.rows[0] || null
     }
 
-    values.push(id, userId)
+    values.push(id)
     const result = await query(
       `UPDATE projects SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $${paramCount} AND user_id = $${paramCount + 1} RETURNING *`,
+       WHERE id = $${paramCount} RETURNING *`,
       values
     )
 
     return result.rows[0] || null
   }
 
-  static async delete(id: string, userId: string): Promise<boolean> {
+  static async delete(id: string): Promise<boolean> {
     const result = await query(
-      'DELETE FROM projects WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'DELETE FROM projects WHERE id = $1',
+      [id]
     )
     return (result.rowCount || 0) > 0
+  }
+
+  static async updatePreviewImage(id: string, previewImage: string): Promise<ProjectDB | null> {
+    const result = await query(
+      'UPDATE projects SET preview_image = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [previewImage, id]
+    )
+    return result.rows[0] || null
   }
 }

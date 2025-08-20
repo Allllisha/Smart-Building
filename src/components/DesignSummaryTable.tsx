@@ -10,7 +10,6 @@ import {
   Typography,
   Box,
   Grid,
-  Divider,
   TextField,
   Accordion,
   AccordionSummary,
@@ -42,17 +41,17 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
 
   // 住戸タイプの集計
   const unitTypeSummary = project.buildingInfo.unitTypes?.map(unitType => ({
-    type: unitType.name,
-    area: unitType.area,
-    count: unitType.count,
-    totalArea: unitType.area * unitType.count
+    type: unitType.typeName,
+    area: unitType.exclusiveArea,
+    count: unitType.units,
+    totalArea: unitType.exclusiveArea * unitType.units
   })) || []
 
   // 各階面積の計算
   const floorAreas = project.buildingInfo.floorDetails?.map((floor, index) => ({
     floor: `${index + 1}F`,
-    area: floor.area,
-    usage: floor.usage || '共同住宅'
+    area: (floor.residentialArea || 0) + (floor.capacityArea || 0) + (floor.nonCapacityArea || 0),
+    usage: '共同住宅'
   })) || []
 
   // 総延床面積の計算
@@ -208,8 +207,8 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                       <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                        {project.siteInfo.siteArea && (project.buildingInfo.totalFloorArea || totalFloorArea)
-                          ? `${(((project.buildingInfo.totalFloorArea || totalFloorArea) / project.siteInfo.siteArea) * 100).toFixed(1)}%`
+                        {project.siteInfo.siteArea && project.buildingInfo.effectiveArea
+                          ? `${((project.buildingInfo.effectiveArea / project.siteInfo.siteArea) * 100).toFixed(1)}%`
                           : '計算不可'}
                       </Typography>
                       {project.siteInfo.floorAreaRatio && (
@@ -228,7 +227,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
 
       <Grid container spacing={3}>
         {/* 建物概要 */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Accordion defaultExpanded sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <AccordionSummary
               expandIcon={<ExpandMoreIcon />}
@@ -306,7 +305,12 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                       <EditableCell
                         value={project.parkingPlan?.parkingSpaces || 0}
                         onUpdate={(value) => onProjectUpdate({
-                          parkingPlan: { ...project.parkingPlan, parkingSpaces: Number(value) }
+                          parkingPlan: { 
+                            parkingSpaces: Number(value),
+                            bicycleSpaces: project.parkingPlan?.bicycleSpaces || 0,
+                            motorcycleSpaces: project.parkingPlan?.motorcycleSpaces || 0,
+                            greenArea: project.parkingPlan?.greenArea || 0
+                          }
                         })}
                         type="number"
                         suffix="台"
@@ -318,7 +322,12 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                       <EditableCell
                         value={project.parkingPlan?.bicycleSpaces || 0}
                         onUpdate={(value) => onProjectUpdate({
-                          parkingPlan: { ...project.parkingPlan, bicycleSpaces: Number(value) }
+                          parkingPlan: { 
+                            parkingSpaces: project.parkingPlan?.parkingSpaces || 0,
+                            bicycleSpaces: Number(value),
+                            motorcycleSpaces: project.parkingPlan?.motorcycleSpaces || 0,
+                            greenArea: project.parkingPlan?.greenArea || 0
+                          }
                         })}
                         type="number"
                         suffix="台"
@@ -330,7 +339,12 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                       <EditableCell
                         value={project.parkingPlan?.greenArea || 0}
                         onUpdate={(value) => onProjectUpdate({
-                          parkingPlan: { ...project.parkingPlan, greenArea: Number(value) }
+                          parkingPlan: { 
+                            parkingSpaces: project.parkingPlan?.parkingSpaces || 0,
+                            bicycleSpaces: project.parkingPlan?.bicycleSpaces || 0,
+                            motorcycleSpaces: project.parkingPlan?.motorcycleSpaces || 0,
+                            greenArea: Number(value)
+                          }
                         })}
                         type="number"
                         suffix="㎡"
@@ -346,7 +360,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
 
         {/* 住戸面積 */}
         {project.buildingInfo.usage === '共同住宅' && unitTypeSummary.length > 0 && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Accordion defaultExpanded sx={{ borderRadius: 3, overflow: 'hidden' }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
@@ -410,7 +424,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
 
         {/* 面積表 */}
         {floorAreas.length > 0 && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Accordion defaultExpanded sx={{ borderRadius: 3, overflow: 'hidden' }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
@@ -468,7 +482,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
         )}
 
         {/* 法規制情報 */}
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Accordion defaultExpanded sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <AccordionSummary
               expandIcon={<ExpandMoreIcon />}
@@ -488,7 +502,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
             </AccordionSummary>
             <AccordionDetails sx={{ p: 2 }}>
               <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <Card sx={{ height: '100%', border: `1px solid ${theme.palette.divider}` }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, fontSize: '0.75rem' }}>用途地域</Typography>
@@ -513,7 +527,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <Card sx={{ height: '100%', border: `1px solid ${theme.palette.divider}` }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, fontSize: '0.75rem' }}>高度地区</Typography>
@@ -538,7 +552,7 @@ export const DesignSummaryTable: React.FC<DesignSummaryTableProps> = ({
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <Card sx={{ height: '100%', border: `1px solid ${theme.palette.divider}` }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, fontSize: '0.75rem' }}>前面道路幅</Typography>

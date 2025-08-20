@@ -274,11 +274,19 @@ export default function Scene3D({ project, ifcUrl, showShadows = true, dateTime 
         buildingGroupRef.current.add(floorLine)
       }
 
-        // 建物表示完了後にスクリーンショットを撮影
-        if (onScreenshotReady) {
+        // プロジェクトにpreviewImageがない場合のみ、スクリーンショットを撮影
+        // 注意: previewImageフィールドがundefinedまたはnull、または空文字列の場合に撮影
+        const shouldTakeScreenshot = onScreenshotReady && (!project.previewImage || project.previewImage === '')
+        
+        if (shouldTakeScreenshot) {
+          console.log('📸 プレビュー画像が未設定のため、スクリーンショットを撮影します')
+          console.log('Current previewImage:', project.previewImage)
           setTimeout(() => {
             captureScreenshot()
           }, 1000) // 1秒待機してからスクリーンショット撮影
+        } else if (project.previewImage && project.previewImage !== '') {
+          console.log('✅ プレビュー画像が既に存在するため、スクリーンショット撮影をスキップします')
+          console.log('Existing previewImage length:', project.previewImage.length)
         }
       }
     } catch (error) {

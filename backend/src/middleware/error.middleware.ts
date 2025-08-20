@@ -28,11 +28,16 @@ export const errorHandler = (
   }
 
   console.error('Unexpected error:', err)
+  
+  // 開発環境またはAzure環境では詳細なエラーメッセージを返す
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production'
+  
   return res.status(500).json({
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
+      message: isDevelopment ? err.message : 'An unexpected error occurred',
+      stack: isDevelopment ? err.stack : undefined,
     },
   })
 }

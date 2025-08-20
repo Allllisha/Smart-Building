@@ -67,7 +67,7 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
       // Mapbox Search Box API（Zenrinデータ使用・番地レベル対応）を使用
       const params = new URLSearchParams({
         q: searchQuery,
-        access_token: mapboxgl.accessToken,
+        access_token: mapboxgl.accessToken || '',
         language: 'ja',
         country: 'JP',
         limit: '5',
@@ -124,33 +124,34 @@ export default function MapSelector({ location, onLocationChange, enablePolygon 
   }
 
   // Google Geocoding APIを使用する代替実装（オプション）
-  const forwardGeocodeWithGoogle = async (query: string) => {
-    // Google Maps Geocoding APIキーが必要
-    const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    if (!googleApiKey) {
-      console.log('Google Maps API key not configured')
-      return null
-    }
-
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&language=ja&region=jp&key=${googleApiKey}`
-      )
-      const data = await response.json()
-      
-      if (data.status === 'OK' && data.results.length > 0) {
-        const result = data.results[0]
-        return {
-          lat: result.geometry.location.lat,
-          lng: result.geometry.location.lng,
-          address: result.formatted_address
-        }
-      }
-    } catch (error) {
-      console.error('Google Geocoding error:', error)
-    }
-    return null
-  }
+  // 現在は未使用ですが、将来の拡張用にコメントとして残しています
+  // const forwardGeocodeWithGoogle = async (query: string) => {
+  //   // Google Maps Geocoding APIキーが必要
+  //   const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  //   if (!googleApiKey) {
+  //     console.log('Google Maps API key not configured')
+  //     return null
+  //   }
+  //
+  //   try {
+  //     const response = await fetch(
+  //       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&language=ja&region=jp&key=${googleApiKey}`
+  //     )
+  //     const data = await response.json()
+  //     
+  //     if (data.status === 'OK' && data.results.length > 0) {
+  //       const result = data.results[0]
+  //       return {
+  //         lat: result.geometry.location.lat,
+  //         lng: result.geometry.location.lng,
+  //         address: result.formatted_address
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Google Geocoding error:', error)
+  //   }
+  //   return null
+  // }
 
   useEffect(() => {
     if (!mapContainer.current) return

@@ -78,6 +78,16 @@ class ShadowRegulationCheckService {
         project
       )
 
+      // 規制が見つからない場合のエラーハンドリング
+      if (!regulation) {
+        return {
+          overallStatus: 'WARNING',
+          summary: '日影規制情報が設定されていません。用途地域を確認してください。',
+          checkItems: [],
+          recommendations: []
+        }
+      }
+
       // 敷地情報に基づく建築可能性を判定
       const buildabilityResult = this.evaluateBuildability(project, regulation)
       const siteArea = project.siteInfo.siteArea || 0
@@ -96,10 +106,10 @@ class ShadowRegulationCheckService {
       })
 
       // プロジェクトに保存された日影規制値を優先的に使用
-      const shadowRegulationValues = project.siteInfo.shadowRegulation || {};
-      const fiveToTenMeters = shadowRegulationValues.allowedShadowTime5to10m ?? regulation?.restrictions?.range5to10m ?? 0;
-      const overTenMeters = shadowRegulationValues.allowedShadowTimeOver10m ?? regulation?.restrictions?.rangeOver10m ?? 0;
-      const measurementHeight = shadowRegulationValues.measurementHeight ?? regulation?.measurementHeight ?? 0;
+      const shadowRegulationValues = project.siteInfo.shadowRegulation;
+      const fiveToTenMeters = shadowRegulationValues?.allowedShadowTime5to10m ?? regulation?.restrictions?.range5to10m ?? 0;
+      const overTenMeters = shadowRegulationValues?.allowedShadowTimeOver10m ?? regulation?.restrictions?.rangeOver10m ?? 0;
+      const measurementHeight = shadowRegulationValues?.measurementHeight ?? regulation?.measurementHeight ?? 0;
 
       return {
         overallStatus: buildabilityResult.isBuildable ? 'OK' : 'NG',
@@ -254,12 +264,12 @@ class ShadowRegulationCheckService {
    * 適用される日影規制を判定
    */
   private async determineApplicableRegulation(
-    address: string,
+    _address: string,
     prefecture: string,
     city: string,
     ward: string,
     project?: Project
-  ): Promise<ZoneRegulation> {
+  ): Promise<ZoneRegulation | null> {
     // プロジェクトに保存された規制情報を優先的に使用
     if (project?.siteInfo?.shadowRegulation && project.siteInfo.shadowRegulation.allowedShadowTime5to10m !== undefined) {
       console.log('📋 保存された日影規制情報を使用:', project.siteInfo.shadowRegulation)
@@ -341,34 +351,35 @@ class ShadowRegulationCheckService {
 
   /**
    * 住所から用途地域を推定
+   * 現在は未使用ですが、将来の自動推定機能のために保持
    */
-  private estimateZoneType(address: string, prefecture: string, city: string, ward: string): string {
-    // 実際の運用では自治体のオープンデータAPIを使用
-    
-    // 東京23区の推定
-    if (prefecture === '東京都' && ward) {
-      const commercialWards = ['千代田区', '中央区', '港区', '新宿区', '渋谷区']
-      const residentialWards = ['世田谷区', '杉並区', '練馬区', '大田区']
-      
-      if (commercialWards.includes(ward)) {
-        if (address.includes('商業') || address.includes('駅')) {
-          return '商業地域'
-        }
-        return '第一種中高層住居専用地域'
-      } else if (residentialWards.includes(ward)) {
-        return '第一種低層住居専用地域'
-      } else {
-        return '第一種中高層住居専用地域'
-      }
-    }
-
-    // その他の地域
-    if (city.includes('市')) {
-      return '第一種中高層住居専用地域'
-    }
-    
-    return '' // デフォルト値なし
-  }
+  // private estimateZoneType(address: string, prefecture: string, city: string, ward: string): string {
+  //   // 実際の運用では自治体のオープンデータAPIを使用
+  //   
+  //   // 東京23区の推定
+  //   if (prefecture === '東京都' && ward) {
+  //     const commercialWards = ['千代田区', '中央区', '港区', '新宿区', '渋谷区']
+  //     const residentialWards = ['世田谷区', '杉並区', '練馬区', '大田区']
+  //     
+  //     if (commercialWards.includes(ward)) {
+  //       if (address.includes('商業') || address.includes('駅')) {
+  //         return '商業地域'
+  //       }
+  //       return '第一種中高層住居専用地域'
+  //     } else if (residentialWards.includes(ward)) {
+  //       return '第一種低層住居専用地域'
+  //     } else {
+  //       return '第一種中高層住居専用地域'
+  //     }
+  //   }
+  //
+  //   // その他の地域
+  //   if (city.includes('市')) {
+  //     return '第一種中高層住居専用地域'
+  //   }
+  //   
+  //   return '' // デフォルト値なし
+  // }
 
   /**
    * 用途地域別規制値を取得
@@ -611,14 +622,14 @@ class ShadowRegulationCheckService {
       }
     }
     
-    if (buildingCoverage === null || buildingCoverage === undefined || buildingCoverage === '') {
+    if (buildingCoverage === null || buildingCoverage === undefined || buildingCoverage === 0) {
       return {
         isBuildable: false,
         summary: '建蔽率が設定されていません。'
       }
     }
     
-    if (floorAreaRatio === null || floorAreaRatio === undefined || floorAreaRatio === '') {
+    if (floorAreaRatio === null || floorAreaRatio === undefined || floorAreaRatio === 0) {
       return {
         isBuildable: false,
         summary: '容積率が設定されていません。'

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Container,
@@ -25,7 +25,6 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
-  Divider,
 } from '@mui/material'
 import { 
   Add as AddIcon, 
@@ -51,6 +50,7 @@ export default function Dashboard() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const { projects, deleteProject, setProjects, setLoading, setError } = useProjectStore()
+  const projectsRef = useRef(projects)
   const [openDialog, setOpenDialog] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -59,6 +59,12 @@ export default function Dashboard() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null)
+  
+  // projectsRefを更新
+  useEffect(() => {
+    projectsRef.current = projects
+  }, [projects])
+  
   // プロジェクト一覧を取得
   useEffect(() => {
     const fetchProjects = async () => {
@@ -66,7 +72,17 @@ export default function Dashboard() {
       setError(null)
       try {
         const response = await projectApi.getAll()
-        setProjects(response.data)
+        // APIから取得したデータと既存のlocalStorageデータをマージ
+        // previewImageなどのローカルのみのデータを保持
+        const mergedProjects = response.data.map((apiProject: Project) => {
+          const existingProject = projectsRef.current.find(p => p.id === apiProject.id)
+          if (existingProject?.previewImage) {
+            // 既存のpreviewImageを保持
+            return { ...apiProject, previewImage: existingProject.previewImage }
+          }
+          return apiProject
+        })
+        setProjects(mergedProjects)
       } catch (error) {
         console.error('Failed to fetch projects:', error)
         setError('プロジェクトの取得に失敗しました')
@@ -85,6 +101,7 @@ export default function Dashboard() {
       try {
         const newProjectData = {
           name: newProjectName,
+          previewImage: undefined, // 明示的にundefinedを設定
           location: {
             address: '',
             latitude: 35.6329, // 東京都世田谷区のデフォルト座標
@@ -222,7 +239,7 @@ export default function Dashboard() {
                   letterSpacing: '-0.03em',
                 }}
               >
-                Projects
+                <span style={{ color: '#d32f2f' }}>プロジェクト</span>
               </Typography>
               <Typography 
                 variant="body1" 
@@ -248,16 +265,7 @@ export default function Dashboard() {
                   {projects.length}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 400, letterSpacing: '0.05em' }}>
-                  Active Projects
-                </Typography>
-              </Box>
-              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-              <Box sx={{ textAlign: { xs: 'left', md: 'center' } }}>
-                <Typography variant="h2" sx={{ fontWeight: 300, color: theme.palette.text.primary }}>
-                  {projects.filter(p => p.buildingInfo.usage === '共同住宅').length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 400, letterSpacing: '0.05em' }}>
-                  Residential
+                  アクティブなプロジェクト
                 </Typography>
               </Box>
             </Box>
@@ -331,7 +339,10 @@ export default function Dashboard() {
                 variant="outlined"
                 size="large"
                 startIcon={<AddIcon />}
-                onClick={() => setOpenDialog(true)}
+                onClick={() => {
+                  setNewProjectName('')  // ダイアログを開く時に名前をクリア
+                  setOpenDialog(true)
+                }}
                 sx={{ 
                   px: 6,
                   py: 2,
@@ -348,7 +359,7 @@ export default function Dashboard() {
                   },
                 }}
               >
-                CREATE NEW PROJECT
+                新規プロジェクト作成
               </Button>
             </Paper>
           </Box>
@@ -569,7 +580,7 @@ export default function Dashboard() {
                           },
                         }}
                       >
-                        EDIT
+                        編集
                       </Button>
                       <Button 
                         size="small" 
@@ -587,7 +598,7 @@ export default function Dashboard() {
                           },
                         }}
                       >
-                        VIEW 3D
+                        3D表示
                       </Button>
                       <Button 
                         size="small" 
@@ -647,7 +658,10 @@ export default function Dashboard() {
               },
               transition: 'all 0.2s ease-in-out',
             }}
-            onClick={() => setOpenDialog(true)}
+            onClick={() => {
+              setNewProjectName('')  // ダイアログを開く時に名前をクリア
+              setOpenDialog(true)
+            }}
           >
             <AddIcon sx={{ fontSize: 28 }} />
           </Fab>
@@ -656,7 +670,10 @@ export default function Dashboard() {
         {/* プロジェクト作成ダイアログ */}
         <Dialog 
           open={openDialog} 
-          onClose={() => setOpenDialog(false)} 
+          onClose={() => {
+            setNewProjectName('')  // ダイアログを閉じる時も名前をクリア
+            setOpenDialog(false)
+          }} 
           maxWidth="sm" 
           fullWidth
           PaperProps={{
@@ -673,7 +690,7 @@ export default function Dashboard() {
             fontWeight: 400,
             letterSpacing: '-0.01em',
           }}>
-            Create New Project
+            新規プロジェクト作成
           </DialogTitle>
           <DialogContent sx={{ px: 4, pb: 2 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -745,7 +762,7 @@ export default function Dashboard() {
                 },
               }}
             >
-              CREATE
+              作成
             </Button>
           </DialogActions>
         </Dialog>
@@ -781,7 +798,7 @@ export default function Dashboard() {
             <ListItemIcon sx={{ minWidth: 32 }}>
               <DeleteIcon fontSize="small" color="error" />
             </ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>DELETE</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>削除</ListItemText>
           </MenuItem>
         </Menu>
 

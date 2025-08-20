@@ -151,7 +151,7 @@ export default function Layout() {
                 letterSpacing: '-0.025em',
               }}
             >
-              Smart Building Planner
+              積算次長
             </Typography>
           </Box>
           

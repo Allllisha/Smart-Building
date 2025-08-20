@@ -13,7 +13,7 @@ export class BIMController {
       const { projectId } = req.params
 
       // プロジェクトの存在確認
-      const project = await ProjectModel.findById(projectId, req.user!.id)
+      const project = await ProjectModel.findById(projectId)
       if (!project) {
         throw new AppError(404, 'Project not found')
       }
@@ -61,7 +61,7 @@ export class BIMController {
       const { projectId } = req.params
 
       // プロジェクトの存在確認
-      const project = await ProjectModel.findById(projectId, req.user!.id)
+      const project = await ProjectModel.findById(projectId)
       if (!project) {
         throw new AppError(404, 'Project not found')
       }
@@ -99,7 +99,7 @@ export class BIMController {
       }
 
       // プロジェクトの存在確認
-      const project = await ProjectModel.findById(projectId, req.user!.id)
+      const project = await ProjectModel.findById(projectId)
       if (!project) {
         throw new AppError(404, 'Project not found')
       }

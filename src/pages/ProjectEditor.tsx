@@ -28,7 +28,7 @@ import {
 import { Delete as DeleteIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material'
 import MapSelector from '@/components/MapSelector'
 import { useProjectStore } from '@/store/projectStore'
-import { Project, BuildingUsage, StructureType, FloorAreaDetail, UnitType } from '@/types/project'
+import { Project, BuildingUsage, StructureType, FloorAreaDetail, UnitType, ShadowRegulation } from '@/types/project'
 import { projectApi } from '@/api/projectApi'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { checkRegulationCompliance } from '@/services/regulationService'
@@ -39,7 +39,6 @@ import { People as PeopleIcon } from '@mui/icons-material'
 import { useRegulationSearch } from '@/hooks/useRegulationSearch'
 import { RegulationInfoDisplay } from '@/components/RegulationInfoDisplay'
 import { ZoningInfoDisplay } from '@/components/ZoningInfoDisplay'
-import { DesignSummaryTable } from '@/components/DesignSummaryTable'
 import { DesignSummaryCompact } from '@/components/DesignSummaryCompact'
 import { ShadowRegulationCheck } from '@/components/ShadowRegulationCheck'
 
@@ -176,7 +175,7 @@ export default function ProjectEditor() {
 
   useEffect(() => {
     const fetchProject = async () => {
-      if (id && !currentProject) {
+      if (id && (!currentProject || currentProject.id !== id)) {
         try {
           // APIから詳細なプロジェクトデータを取得
           const project = await projectApi.getById(id)
@@ -1170,7 +1169,7 @@ export default function ProjectEditor() {
       case 1:
         return (
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4 }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4, color: '#2C3E50' }}>
               面積・規制情報
             </Typography>
             
@@ -1235,9 +1234,15 @@ export default function ProjectEditor() {
                           siteInfo: {
                             ...currentProject.siteInfo,
                             shadowRegulation: {
+                              targetArea: '',
+                              targetBuilding: '',
+                              measurementHeight: 0,
+                              measurementTime: '',
+                              allowedShadowTime5to10m: 0,
+                              allowedShadowTimeOver10m: 0,
                               ...currentProject.siteInfo.shadowRegulation,
                               ...updates
-                            },
+                            } as ShadowRegulation,
                           },
                         });
                       }}
@@ -1307,7 +1312,7 @@ export default function ProjectEditor() {
                 display: 'flex',
                 flexDirection: 'column'
               }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2C3E50' }}>
                   日影規制チェック
                 </Typography>
                 <Box sx={{ flexGrow: 1 }}>
@@ -1406,7 +1411,7 @@ export default function ProjectEditor() {
       case 2:
         return (
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4 }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, px: 4, pt: 4, color: '#2C3E50' }}>
               建物情報設定
             </Typography>
             
@@ -1429,14 +1434,14 @@ export default function ProjectEditor() {
                   '&:hover': { bgcolor: 'grey.100' }
                 }}
               >
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                <Typography variant="h6" sx={{ fontWeight: 500, color: '#2C3E50' }}>
                   建物基本情報
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Grid container spacing={4}>
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: 'primary.main', fontWeight: 500 }}>
+                    <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#2C3E50', fontWeight: 500 }}>
                       建物概要
                     </Typography>
                 <FormControl fullWidth margin="normal">
@@ -1546,7 +1551,7 @@ export default function ProjectEditor() {
                 />
               </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: 'primary.main', fontWeight: 500 }}>
+                    <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#2C3E50', fontWeight: 500 }}>
                       面積情報
                     </Typography>
                 <TextField
@@ -1643,7 +1648,7 @@ export default function ProjectEditor() {
                   '&:hover': { bgcolor: 'grey.100' }
                 }}
               >
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                <Typography variant="h6" sx={{ fontWeight: 500, color: '#2C3E50' }}>
                   詳細面積・住戸情報
                 </Typography>
               </AccordionSummary>
@@ -1679,7 +1684,7 @@ export default function ProjectEditor() {
                   '&:hover': { bgcolor: 'grey.100' }
                 }}
               >
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                <Typography variant="h6" sx={{ fontWeight: 500, color: '#2C3E50' }}>
                   駐車場・駐輪場・緑地計画
                 </Typography>
               </AccordionSummary>
@@ -1813,7 +1818,7 @@ export default function ProjectEditor() {
                     sx={{ 
                       mb: 3, 
                       fontWeight: 700,
-                      color: 'primary.main',
+                      color: '#2C3E50',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1,
@@ -1925,7 +1930,7 @@ export default function ProjectEditor() {
       case 3:
         return (
           <Paper sx={{ p: 4, borderRadius: 2 }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, color: '#2C3E50' }}>
               設計概要
             </Typography>
             
@@ -2313,10 +2318,7 @@ export default function ProjectEditor() {
               variant={isMobile ? "h5" : "h4"} 
               sx={{ 
                 fontWeight: 800,
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: theme.palette.primary.main,
                 lineHeight: 1.2,
               }}
             >
